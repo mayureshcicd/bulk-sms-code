@@ -657,6 +657,133 @@ public class WhatsAppController {
         }
     }
 
+    // 2b. Send bulk plain text messages (unformatted, direct plain text via OpenWA free engine)
+    @PostMapping("/send-bulk-plain-text")
+    public ResponseEntity<String> sendBulkPlainText(
+            @RequestParam(value = "csv", required = false) MultipartFile csvFile,
+            @RequestParam(value = "contactIds", required = false) List<Long> contactIds,
+            @RequestParam(value = "message", required = false) String message,
+            @RequestParam(value = "approvedMessageId", required = false) Long approvedMessageId,
+            @RequestParam(value = "phoneLimit", required = false) Integer phoneLimit,
+            @RequestParam(value = "delayMs", required = false, defaultValue = "3000") int delayMs,
+            @RequestParam(value = "randomizeDelay", required = false, defaultValue = "false") boolean randomizeDelay) throws IOException {
+        String periodMessage = getStringResponseEntity();
+        if (periodMessage != null) return ResponseEntity.badRequest().body(
+                objectMapper.createObjectNode().put("error", periodMessage).toString());
+        if (openWAHandler.getSessionId() == null) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Session not connected. Click Connect first!").toString());
+        }
+
+        if (!openWAHandler.isSessionReady()) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Session is not ready. Please check connection.").toString());
+        }
+
+        String validationError = validateBulkOptions(phoneLimit, delayMs);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(objectMapper.createObjectNode().put("error", validationError).toString());
+        }
+
+        try {
+            if (approvedMessageId != null) {
+                ApprovedMessageClient.ApprovedMessage approved = approvedMessageClient.get(approvedMessageId);
+                message = approved == null ? null : approved.content();
+            }
+            if (message == null || message.isBlank()) {
+                return ResponseEntity.badRequest().body(objectMapper.createObjectNode().put("error", "Approved message is required").toString());
+            }
+
+            // Strip formatting if any to guarantee plain text delivery
+            String plainTextMessage = message.trim();
+
+            List<com.sms.service.ContactService.RecipientDetail> recipientDetails = contactService.recipientsDetailed(csvFile, contactIds);
+            if (phoneLimit != null && phoneLimit > 0 && recipientDetails.size() > phoneLimit) {
+                recipientDetails = recipientDetails.subList(0, phoneLimit);
+            }
+
+            List<com.sms.service.ContactService.RecipientDetail> validPhoneRecipients = new ArrayList<>();
+            List<String> phoneNumbers = new ArrayList<>();
+            for (com.sms.service.ContactService.RecipientDetail r : recipientDetails) {
+                if (r.formattedChatId() != null && !r.formattedChatId().isBlank()) {
+                    validPhoneRecipients.add(r);
+                    phoneNumbers.add(r.formattedChatId());
+                }
+            }
+
+            if (validPhoneRecipients.isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        objectMapper.createObjectNode().put("error", "No valid phone numbers found in CSV file or selected contacts").toString());
+            }
+
+            log.info("Found {} phone numbers for plain text bulk send", validPhoneRecipients.size());
+
+            List<Map<String, Object>> messages = new ArrayList<>();
+            for (com.sms.service.ContactService.RecipientDetail recipient : validPhoneRecipients) {
+                Map<String, Object> messageBody = new HashMap<>();
+                messageBody.put("chatId", recipient.formattedChatId());
+                messageBody.put("type", "text");
+
+                Map<String, String> content = new HashMap<>();
+                content.put("text", plainTextMessage);
+                messageBody.put("content", content);
+
+                messages.add(messageBody);
+            }
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("messages", messages);
+
+            Map<String, Object> options = new HashMap<>();
+            options.put("delayBetweenMessages", delayMs);
+            options.put("randomizeDelay", randomizeDelay);
+            options.put("stopOnError", false);
+            payload.put("options", options);
+
+            HttpHeaders headers = openWAHandler.getHttpHeaders();
+            String url = openwaConfig.getUrl() + "/sessions/" + openWAHandler.getSessionId() + "/messages/send-bulk";
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+            ResponseEntity<String> responseRaw = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            JsonNode response = objectMapper.readTree(responseRaw.getBody());
+
+            if (approvedMessageId != null) {
+                recordBulkReportSafely(approvedMessageId, csvFile, phoneNumbers);
+            }
+
+            ObjectNode responseNode = objectMapper.createObjectNode();
+            responseNode.put("success", true);
+            responseNode.put("totalRecipients", phoneNumbers.size());
+            responseNode.put("batchId", response.has("batchId") ? response.get("batchId").asText() : "N/A");
+            responseNode.put("status", response.has("status") ? response.get("status").asText() : "processing");
+            responseNode.put("message", plainTextMessage);
+            responseNode.put("delayMs", delayMs);
+            responseNode.put("randomizeDelay", randomizeDelay);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(responseNode));
+
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to send bulk plain text messages: ", e);
+            return ResponseEntity.status(500).body(
+                    objectMapper.createObjectNode().put("error", "Failed to send bulk plain text: " + e.getMessage()).toString());
+        }
+    }
+
+    // 2c. Send bulk MMS (Media / Image / Video / Document attachment with caption via free OpenWA)
+    @PostMapping("/send-bulk-mms")
+    public ResponseEntity<String> sendBulkMms(
+            @RequestParam(value = "csv", required = false) MultipartFile csvFile,
+            @RequestParam(value = "contactIds", required = false) List<Long> contactIds,
+            @RequestParam(value = "approvedMessageId", required = false) Long approvedMessageId,
+            @RequestParam(value = "phoneLimit", required = false) Integer phoneLimit,
+            @RequestParam(value = "delayMs", required = false, defaultValue = "3000") long delayMs) throws IOException {
+        return sendDocumentBulk(csvFile, null, contactIds, null, approvedMessageId, phoneLimit, delayMs);
+    }
+
     @PostMapping("/send-bulk-email")
     public ResponseEntity<String> sendBulkEmail(
             @RequestParam(value = "csv", required = false) MultipartFile csvFile,

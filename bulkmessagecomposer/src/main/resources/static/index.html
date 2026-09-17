@@ -638,8 +638,14 @@
                     </div>
 
                     <div class="mt-3 d-flex flex-wrap gap-2">
+                        <button class="btn btn-secondary text-white" id="sendBulkPlainTextBtn" disabled>
+                            <i class="fas fa-comment-dots"></i> Send Bulk Plain Text Messages
+                        </button>
+                        <button class="btn btn-warning text-dark" id="sendBulkMmsBtn" disabled>
+                            <i class="fas fa-photo-film"></i> Send Bulk MMS (Image/Video/Doc)
+                        </button>
                         <button class="btn btn-info text-white" id="sendBulkTextBtn" disabled>
-                            <i class="fab fa-whatsapp"></i> Send Bulk Whatsapp Messages
+                            <i class="fab fa-whatsapp"></i> Send Bulk WhatsApp Messages
                         </button>
                         <button class="btn btn-primary" id="sendEmailsBtn">
                             <i class="fas fa-envelope"></i> Send Emails
@@ -1084,7 +1090,7 @@
         $('#pairingCodeContainer').hide();
 
         // Enable all send buttons
-        $('#sendSingleBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', false);
+        $('#sendSingleBtn, #sendBulkPlainTextBtn, #sendBulkMmsBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', false);
     }
 
     function updateUIForDisconnected() {
@@ -1101,7 +1107,7 @@
         $('#connectedInfo').hide();
 
         // Disable all send buttons
-        $('#sendSingleBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', true);
+        $('#sendSingleBtn, #sendBulkPlainTextBtn, #sendBulkMmsBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', true);
     }
 
     function showNotification(message, type) {
@@ -1462,6 +1468,154 @@
             },
             complete: function() {
                 $('#sendEmailsBtn').prop('disabled', false).html('<i class="fas fa-envelope"></i> Send Emails');
+            }
+        });
+    });
+
+    // 1. Send Bulk Plain Text Messages
+    $('#sendBulkPlainTextBtn').click(function() {
+        const csvFile = $('#bulkCsvFile')[0].files[0];
+        const approvedMessageId = approvedGridState.text.selectedId;
+        const phoneLimit = parseInt($('#bulkTextPhoneLimit').val());
+        const delayMs = parseInt($('#bulkTextDelayMs').val()) || 3000;
+        const randomizeDelay = $('#bulkTextRandomizeDelay').val() === 'true';
+
+        if ((!csvFile && !window.contactSelection.hasSelection()) || !approvedMessageId || !phoneLimit || phoneLimit < 1 || phoneLimit > 100 || delayMs < 1000) {
+            showNotification('Select an approved message and a CSV/TXT file or contacts. Phone limit must be 1-100.', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        window.contactSelection.appendRecipients(formData, csvFile);
+        formData.append('approvedMessageId', approvedMessageId);
+        formData.append('phoneLimit', phoneLimit);
+        formData.append('delayMs', delayMs);
+        formData.append('randomizeDelay', randomizeDelay);
+
+        $('#sendBulkPlainTextBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending Plain Text...');
+        $('#bulkTextProgress').show();
+        $('#bulkTextProgressBar').css('width', '15%').text('15%');
+        $('#bulkTextProgressStatus').text('Preparing plain text recipients...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-bulk-plain-text',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000,
+            dataType: 'json',
+            success: function(response) {
+                $('#bulkTextProgressBar').css('width', '100%').text('100%');
+                $('#bulkTextProgressStatus').text('Plain text batch dispatched!');
+
+                let html = '<div class="alert alert-info">';
+                html += '<strong>💬 Plain Text Batch Created!</strong><br>';
+                html += '<strong>Batch ID:</strong> ' + response.batchId + '<br>';
+                html += '<strong>Status:</strong> <span id="batchStatusText">' + response.status + '</span><br>';
+                html += '<strong>Total Messages:</strong> ' + response.totalRecipients + '<br>';
+                html += '<strong>Type:</strong> Plain Text (Free OpenWA)<br>';
+                html += '<strong>Delay:</strong> ' + response.delayMs + ' ms<br>';
+                html += '<div id="batchProgress" class="mt-2"></div>';
+                html += '</div>';
+
+                $('#bulkTextResult').html(html);
+                startPollingBatchStatus(response.batchId);
+
+                $('#bulkCsvFile').val('');
+                $('input[name="bulkTextApprovedMessage"]').prop('checked', false);
+                approvedGridState.text.selectedId = null;
+                showNotification(`Plain Text batch ${response.batchId} created for ${response.totalRecipients} recipients`, 'success');
+
+                setTimeout(() => { $('#bulkTextProgress').hide(); }, 3000);
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Failed to send plain text';
+                $('#bulkTextResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                $('#bulkTextProgress').hide();
+                showNotification('Failed to send plain text: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendBulkPlainTextBtn').prop('disabled', false).html('<i class="fas fa-comment-dots"></i> Send Bulk Plain Text Messages');
+            }
+        });
+    });
+
+    // 2. Send Bulk MMS (Attachments/Media with Caption)
+    $('#sendBulkMmsBtn').click(function() {
+        const csvFile = $('#bulkCsvFile')[0].files[0];
+        const approvedMessageId = approvedGridState.text.selectedId;
+        const phoneLimit = parseInt($('#bulkTextPhoneLimit').val());
+        const delayMs = parseInt($('#bulkTextDelayMs').val()) || 3000;
+
+        if ((!csvFile && !window.contactSelection.hasSelection()) || !approvedMessageId || !phoneLimit || phoneLimit < 1 || phoneLimit > 100) {
+            showNotification('Select an approved message (with attached image/video/document) and contacts.', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        window.contactSelection.appendRecipients(formData, csvFile);
+        formData.append('approvedMessageId', approvedMessageId);
+        formData.append('phoneLimit', phoneLimit);
+        formData.append('delayMs', delayMs);
+
+        $('#sendBulkMmsBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Dispatching MMS...');
+        $('#bulkTextProgress').show();
+        $('#bulkTextProgressBar').css('width', '25%').text('25%');
+        $('#bulkTextProgressStatus').text('Uploading media attachment for MMS delivery...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-bulk-mms',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000,
+            dataType: 'json',
+            success: function(response) {
+                $('#bulkTextProgressBar').css('width', '100%').text('100%');
+                $('#bulkTextProgressStatus').text('Bulk MMS Complete!');
+
+                let html = '<div class="alert alert-success">';
+                html += '<strong>🖼️ Bulk MMS Dispatch Completed!</strong><br>';
+                html += '<div class="row mt-2">';
+                html += '<div class="col-md-4"><div class="stats-card stats-total p-2"><strong>Total:</strong> ' + response.totalRecipients + '</div></div>';
+                html += '<div class="col-md-4"><div class="stats-card stats-success p-2"><strong>Success:</strong> ' + response.successCount + '</div></div>';
+                html += '<div class="col-md-4"><div class="stats-card stats-failed p-2"><strong>Failed:</strong> ' + response.failureCount + '</div></div>';
+                html += '</div>';
+                if (response.documentName) html += '<strong>Attachment:</strong> ' + escapeHtml(response.documentName) + '<br>';
+                if (response.caption) html += '<strong>Caption:</strong> ' + escapeHtml(response.caption) + '<br>';
+                html += '</div>';
+
+                if (response.details && response.details.length > 0) {
+                    html += '<div class="mt-2">';
+                    html += '<button class="btn btn-sm btn-outline-info" onclick="$(\'#mmsDetailsTable\').toggle()">Show/Hide Details</button>';
+                    html += '<div id="mmsDetailsTable" style="display:none; margin-top:10px; max-height:300px; overflow-y:auto;">';
+                    html += '<table class="table table-sm table-bordered">';
+                    html += '<thead class="table-dark"><tr><th>Phone Number</th><th>Status</th><th>Message ID/Error</th></tr></thead><tbody>';
+                    for (let detail of response.details) {
+                        let statusClass = detail.status === 'success' ? 'text-success' : 'text-danger';
+                        html += `<tr><td>${escapeHtml(detail.phoneNumber)}</td><td class="${statusClass}"><strong>${escapeHtml(detail.status)}</strong></td><td><small>${escapeHtml(detail.messageId || detail.error || '-')}</small></td></tr>`;
+                    }
+                    html += '</tbody></table></div></div>';
+                }
+
+                $('#bulkTextResult').html(html);
+                $('#bulkCsvFile').val('');
+                $('input[name="bulkTextApprovedMessage"]').prop('checked', false);
+                approvedGridState.text.selectedId = null;
+                showNotification(`Bulk MMS completed: ${response.successCount}/${response.totalRecipients} sent`, 'success');
+
+                setTimeout(() => { $('#bulkTextProgress').hide(); }, 5000);
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Failed to dispatch MMS';
+                $('#bulkTextResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                $('#bulkTextProgress').hide();
+                showNotification('Failed to dispatch MMS: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendBulkMmsBtn').prop('disabled', false).html('<i class="fas fa-photo-film"></i> Send Bulk MMS (Image/Video/Doc)');
             }
         });
     });
