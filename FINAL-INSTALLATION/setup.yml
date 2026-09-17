@@ -1,0 +1,172 @@
+services:
+  openwa-api:
+    image: ghcr.io/rmyndharis/openwa:latest
+    container_name: openwa
+    restart: unless-stopped
+    ports:
+      - "2785:2785"   # API
+      - "2886:2886"   # Dashboard (highly recommended)
+      - "7000:7000"   # QR code server (if available)
+    volumes:
+      # OpenWA writes protected files (chmod 0600). NTFS/FUSE project paths do
+      # not support the required Unix permissions, so use a managed volume.
+      - openwa-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - API_PORT=2785
+      - API_KEY=${API_KEY}
+      - AUTO_START_SESSIONS=true 
+      - DATABASE_TYPE=sqlite
+      - DATABASE_NAME=/app/data/openwa.sqlite
+      - SESSION_DATA_PATH=/app/data/sessions
+      - STORAGE_TYPE=local
+      - STORAGE_LOCAL_PATH=/app/data/media
+      # Download and durably archive incoming images, videos, PDFs, audio and other media.
+      - MEDIA_DOWNLOAD_ENABLED=true
+      - MEDIA_DOWNLOAD_MAX_BYTES=104857600
+      - MEDIA_DOWNLOAD_TIMEOUT_MS=120000
+      - INBOUND_MEDIA_CONCURRENCY=2
+      - CHAT_HISTORY_MEDIA_BUDGET_BYTES=104857600
+      - CHAT_MEDIA_ARCHIVE_ENABLED=true
+      - CHAT_MEDIA_ARCHIVE_MAX_BYTES=104857600
+      - CHAT_MEDIA_ARCHIVE_TTL_DAYS=0
+      - PLUGINS_ENABLED=true
+      # Baileys handles incoming media without Chromium/WhatsApp-Web video
+      # download failures seen with the whatsapp-web.js engine.
+      - ENGINE_TYPE=baileys
+      - PUPPETEER_HEADLESS=true
+      - USE_CHROME=true
+      - CHROME_PATH=/usr/bin/chromium-browser
+      - PUPPETEER_ARGS=--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu,--disable-accelerated-2d-canvas,--disable-gpu-compositing,--disable-web-security,--disable-features=IsolateOrigins,site-per-process
+      
+      # ✅ CORS Configuration for Swagger UI and local development
+      - CORS_ORIGINS=http://localhost:2785,http://127.0.0.1:2785,http://localhost:2886,http://127.0.0.1:2886
+      - CORS_METHODS=GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS
+      - CORS_CREDENTIALS=true
+      - CORS_ALLOWED_HEADERS=Content-Type,Accept,Authorization,X-Requested-With,X-HTTP-Method-Override,X-Forwarded-For
+      
+      # 🔧 CRITICAL FIX - Chrome writable directories (YOU ARE MISSING THESE)
+      #- XDG_CONFIG_HOME=/tmp/.chromium
+      #- XDG_CACHE_HOME=/tmp/.chromium
+      - XDG_CONFIG_HOME=/app/data/.chromium
+      - XDG_CACHE_HOME=/app/data/.chromium-cache
+      # 🚀 DASHBOARD CONFIGURATION - ADD THESE LINES
+      - DASHBOARD_ENABLED=true
+      - DASHBOARD_PORT=2886
+      - DASHBOARD_API_URL=http://localhost:2785
+      - DASHBOARD_QR_REFRESH_INTERVAL=30
+      
+      # ✅ ✅ ✅ ENABLE SWAGGER - ADD THIS LINE
+      - ENABLE_SWAGGER=true      
+      - SSRF_ALLOWED_HOSTS=message-approve-api
+          
+    shm_size: 2gb
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+
+  sms-api:
+    build:
+      context: .
+      dockerfile: bulkmessagedockerfile.yml
+
+    container_name: sms-api
+    restart: unless-stopped
+
+    env_file:
+      - .env
+      
+    environment:
+      COMPANY_NAME: ${COMPANY_NAME:-ATOZ GUMMING WORK INDIA PVT. LTD.}
+      HARDWARE_BINDING_ENABLED: ${HARDWARE_BINDING_ENABLED:-true}
+      HARDWARE_REGISTRATION_FILE: /app/license/registered-system.dat
+      HOST_DMI_DIRECTORY: /host-system/dmi
+      MESSAGE_APPROVAL_URL: http://message-approve-api:8081
+      MESSAGE_INTEGRATION_KEY: ${MESSAGE_INTEGRATION_KEY}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+
+    ports:
+      - "8080:8080"
+      
+    volumes:
+      - ./data/sms:/app/license
+      - /sys/class/dmi/id:/host-system/dmi:ro
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+  message-approve-api:
+    build:
+      context: .
+      dockerfile: messageApprovalsystemdockerfile.yml
+
+    container_name: message-approve-api
+    restart: unless-stopped
+
+    env_file:
+      - .env
+      
+    environment:
+      COMPANY_NAME: ${COMPANY_NAME:-ATOZ GUMMING WORK INDIA PVT. LTD.}
+      HARDWARE_BINDING_ENABLED: ${HARDWARE_BINDING_ENABLED:-true}
+      HARDWARE_REGISTRATION_FILE: /app/license/registered-system.dat
+      HOST_DMI_DIRECTORY: /host-system/dmi
+      DB_HOST: postgres
+      DB_PORT: 5432
+      BULK_COMPOSER_URL: http://sms-api:8080/bulk-sms
+      OPENWA_BASE_URL: http://openwa-api:2785/api
+      OPENWA_API_KEY: ${API_KEY}
+      OPENWA_WEBHOOK_URL: http://message-approve-api:8081/api/openwa/webhook
+      OPENWA_WEBHOOK_SECRET: ${OPENWA_WEBHOOK_SECRET}
+      ALLOW_INCOMING_MESSAGE: ${ALLOW_INCOMING_MESSAGE:-true}
+
+    depends_on:
+      openwa-api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+    ports:
+      - "8081:8081"
+      
+    volumes:
+      - ./data/messages:/app/license
+      - ./data/uploads:/app/uploads
+      - /sys/class/dmi/id:/host-system/dmi:ro
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: message-approve-postgres
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      # PostgreSQL requires Unix chmod/chown semantics. The installation may
+      # live on NTFS/FUSE, so its database must use a Docker-managed volume.
+      - postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  openwa-data:
+  postgres-data:
