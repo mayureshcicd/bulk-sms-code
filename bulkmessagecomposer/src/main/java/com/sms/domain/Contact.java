@@ -13,11 +13,15 @@ public class Contact {
     private String name;
     @Column(nullable = false, length = 15)
     private String phoneNumber;
+    @Column(length = 150)
+    private String email;
     public Long getId() { return id; }
     public Long getOwnerId() { return ownerId; }
     public String getName() { return name; }
     public String getPhoneNumber() { return phoneNumber; }
+    public String getEmail() { return email; }
     public void setOwnerId(Long ownerId) { this.ownerId = ownerId; }
     public void setName(String name) { this.name = name; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+    public void setEmail(String email) { this.email = email; }
 }

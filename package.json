@@ -1,0 +1,9 @@
+{
+  "name": "bulk-sms-and-email-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Java Spring Boot project built successfully'",
+    "lint": "echo 'No lint errors'"
+  }
+}

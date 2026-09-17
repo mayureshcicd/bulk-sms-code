@@ -42,6 +42,7 @@ public class WhatsAppController {
     private final TrialService trialService;
     private final com.sms.service.ContactService contactService;
     private final ApprovedMessageClient approvedMessageClient;
+    private final com.sms.service.EmailService emailService;
 
     @Value("${whatsapp.bulk.min-delay-ms:3000}")
     private long minBulkDelayMs;
@@ -562,26 +563,44 @@ public class WhatsAppController {
             if (message == null || message.isBlank()) {
                 return ResponseEntity.badRequest().body(objectMapper.createObjectNode().put("error", "Approved message is required").toString());
             }
-            // Read phone numbers from CSV file
-            List<String> phoneNumbers = applyPhoneLimit(contactService.recipients(csvFile, contactIds), phoneLimit);
-
-            if (phoneNumbers.isEmpty()) {
-                return ResponseEntity.badRequest().body(
-                        objectMapper.createObjectNode().put("error", "No valid phone numbers found in CSV file").toString());
+            // Read recipients from CSV file or selected contacts
+            List<com.sms.service.ContactService.RecipientDetail> recipientDetails = contactService.recipientsDetailed(csvFile, contactIds);
+            if (phoneLimit != null && phoneLimit > 0 && recipientDetails.size() > phoneLimit) {
+                recipientDetails = recipientDetails.subList(0, phoneLimit);
             }
 
-            log.info("Found {} phone numbers in CSV file", phoneNumbers.size());
+            // Filter for valid WhatsApp phone numbers
+            List<com.sms.service.ContactService.RecipientDetail> validPhoneRecipients = new ArrayList<>();
+            List<String> phoneNumbers = new ArrayList<>();
+            for (com.sms.service.ContactService.RecipientDetail r : recipientDetails) {
+                if (r.formattedChatId() != null && !r.formattedChatId().isBlank()) {
+                    validPhoneRecipients.add(r);
+                    phoneNumbers.add(r.formattedChatId());
+                }
+            }
 
-            // ✅ Build the bulk payload for ALL messages at once
+            if (validPhoneRecipients.isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        objectMapper.createObjectNode().put("error", "No valid phone numbers found in CSV file or selected contacts").toString());
+            }
+
+            log.info("Found {} phone numbers for WhatsApp bulk send", validPhoneRecipients.size());
+
+            // ✅ Build the bulk payload for ALL messages at once with personalized greeting
             List<Map<String, Object>> messages = new ArrayList<>();
 
-            for (String phoneNumber : phoneNumbers) {
+            for (com.sms.service.ContactService.RecipientDetail recipient : validPhoneRecipients) {
                 Map<String, Object> messageBody = new HashMap<>();
-                messageBody.put("chatId", phoneNumber );
+                messageBody.put("chatId", recipient.formattedChatId());
                 messageBody.put("type", "text");
 
+                String greetingName = (recipient.name() != null && !recipient.name().isBlank())
+                        ? recipient.name().strip()
+                        : "User";
+                String personalizedMessage = "Dear " + greetingName + ",\n\n" + message;
+
                 Map<String, String> content = new HashMap<>();
-                content.put("text", message);
+                content.put("text", personalizedMessage);
                 messageBody.put("content", content);
 
                 messages.add(messageBody);
@@ -635,6 +654,111 @@ public class WhatsAppController {
             log.error("Failed to send bulk messages: ", e);
             return ResponseEntity.status(500).body(
                     objectMapper.createObjectNode().put("error", "Failed to send bulk messages: " + e.getMessage()).toString());
+        }
+    }
+
+    @PostMapping("/send-bulk-email")
+    public ResponseEntity<String> sendBulkEmail(
+            @RequestParam(value = "csv", required = false) MultipartFile csvFile,
+            @RequestParam(value = "contactIds", required = false) List<Long> contactIds,
+            @RequestParam(value = "approvedMessageId", required = false) Long approvedMessageId,
+            @RequestParam(value = "emailLimit", required = false) Integer emailLimit,
+            @RequestParam(value = "delayMs", required = false, defaultValue = "1000") long delayMs) throws IOException {
+
+        String periodMessage = getStringResponseEntity();
+        if (periodMessage != null) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", periodMessage).toString());
+        }
+
+        if (delayMs < 0) delayMs = 1000;
+        if (emailLimit != null && (emailLimit <= 0 || emailLimit > maxBulkRecipients)) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Email limit must be between 1 and " + maxBulkRecipients).toString());
+        }
+
+        try {
+            String message = null;
+            String subject = "Important Notice";
+            byte[] attachmentBytes = null;
+            String attachmentName = null;
+            String attachmentType = null;
+
+            if (approvedMessageId != null) {
+                ApprovedMessageClient.ApprovedMessage approved = approvedMessageClient.get(approvedMessageId);
+                if (approved != null) {
+                    message = approved.content();
+                    if (approved.title() != null && !approved.title().isBlank()) {
+                        subject = approved.title();
+                    }
+                    if (approved.files() != null && !approved.files().isEmpty()) {
+                        try {
+                            ApprovedMessageClient.Attachment att = approvedMessageClient.getAttachment(approvedMessageId, 0, approved.files().get(0));
+                            if (att != null) {
+                                attachmentBytes = att.bytes();
+                                attachmentName = att.fileName();
+                                attachmentType = att.contentType();
+                            }
+                        } catch (Exception ex) {
+                            log.warn("Could not load attachment for email: {}", ex.getMessage());
+                        }
+                    }
+                }
+            }
+
+            if (message == null || message.isBlank()) {
+                return ResponseEntity.badRequest().body(
+                        objectMapper.createObjectNode().put("error", "Approved message is required").toString());
+            }
+
+            List<com.sms.service.ContactService.RecipientDetail> detailedRecipients = contactService.recipientsDetailed(csvFile, contactIds);
+            List<com.sms.service.EmailService.EmailRecipient> emailRecipients = new ArrayList<>();
+
+            for (com.sms.service.ContactService.RecipientDetail r : detailedRecipients) {
+                if (r.email() != null && !r.email().isBlank() && r.email().contains("@")) {
+                    emailRecipients.add(new com.sms.service.EmailService.EmailRecipient(r.name(), r.email()));
+                }
+            }
+
+            if (emailLimit != null && emailLimit > 0 && emailRecipients.size() > emailLimit) {
+                emailRecipients = emailRecipients.subList(0, emailLimit);
+            }
+
+            if (emailRecipients.isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        objectMapper.createObjectNode().put("error", "No recipients with valid email addresses found in the selected contacts or CSV file.").toString());
+            }
+
+            com.sms.service.EmailService.EmailBatchResult result = emailService.sendBulkEmails(
+                    emailRecipients,
+                    subject,
+                    message,
+                    attachmentBytes,
+                    attachmentName,
+                    attachmentType,
+                    delayMs
+            );
+
+            ObjectNode res = objectMapper.createObjectNode();
+            res.put("success", !"failed".equalsIgnoreCase(result.status()));
+            res.put("batchId", result.batchId());
+            res.put("status", result.status());
+            res.put("totalRecipients", result.totalRecipients());
+            res.put("sentMessages", result.sentCount());
+            res.put("failedMessages", result.failedCount());
+            res.put("message", result.message());
+            res.set("failedDetails", objectMapper.valueToTree(result.failedDetails()));
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(res));
+
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to send bulk emails: ", e);
+            return ResponseEntity.status(500).body(
+                    objectMapper.createObjectNode().put("error", "Failed to send bulk emails: " + e.getMessage()).toString());
         }
     }
 

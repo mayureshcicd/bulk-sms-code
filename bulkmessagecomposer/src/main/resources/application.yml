@@ -22,6 +22,21 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
+            required: ${SPRING_MAIL_SMTP_STARTTLS_REQUIRED:false}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   servlet:
     multipart:
       max-file-size: 50MB
@@ -29,6 +44,9 @@ spring:
 
 app:
   company-name: ${COMPANY_NAME:ATOZ GUMMING WORK INDIA PVT. LTD.}
+  mail:
+    from: ${SPRING_MAIL_FROM:${SPRING_MAIL_USERNAME:no-reply@atozgumming.com}}
+    from-name: ${SPRING_MAIL_FROM_NAME:${COMPANY_NAME:ATOZ GUMMING WORK INDIA PVT. LTD.}}
 
 hardware-binding:
   enabled: ${HARDWARE_BINDING_ENABLED:false}

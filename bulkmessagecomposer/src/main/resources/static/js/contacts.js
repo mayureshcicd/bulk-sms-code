@@ -65,12 +65,15 @@
             checkCell.append(checkbox);
             row.insertCell().textContent = contact.name;
             row.insertCell().textContent = contact.phoneNumber;
+            row.insertCell().textContent = contact.email || '—';
             const actions = row.insertCell();
             const edit = document.createElement('button');
             edit.type = 'button'; edit.className = 'btn btn-primary btn-sm me-2'; edit.textContent = 'Edit';
             edit.addEventListener('click', () => {
                 editingId = contact.id;
-                $id('contactName').value = contact.name; $id('contactPhone').value = contact.phoneNumber;
+                $id('contactName').value = contact.name;
+                $id('contactPhone').value = contact.phoneNumber;
+                if ($id('contactEmail')) $id('contactEmail').value = contact.email || '';
                 $id('contactFormTitle').textContent = 'Update Contact'; $id('saveContact').textContent = 'Update';
                 $id('cancelContactEdit').classList.remove('d-none'); $id('contactName').focus();
             });
@@ -90,13 +93,14 @@
         }
         if (!visible.length) {
             const cell = document.createElement('tr').insertCell();
-            cell.colSpan = 4; cell.className = 'text-center text-muted py-4';
+            cell.colSpan = 5; cell.className = 'text-center text-muted py-4';
             cell.textContent = loading ? 'Loading contacts…' : 'No contacts found.';
             rows.append(cell.parentElement);
         }
     }
     function resetForm() {
         editingId = null; $id('contactForm').reset();
+        if ($id('contactEmail')) $id('contactEmail').value = '';
         $id('contactFormTitle').textContent = 'Create Contact'; $id('saveContact').textContent = 'Create';
         $id('cancelContactEdit').classList.add('d-none');
     }
@@ -127,10 +131,15 @@
     $id('contactForm').addEventListener('submit', async event => {
         event.preventDefault();
         const button = $id('saveContact'); button.disabled = true; notice();
+        const emailVal = $id('contactEmail') ? $id('contactEmail').value.trim() : null;
         try {
             const saved = await request(editingId === null ? '' : '/' + editingId, {
                 method: editingId === null ? 'POST' : 'PUT',
-                body: JSON.stringify({ name: $id('contactName').value.trim(), phoneNumber: $id('contactPhone').value.trim() })
+                body: JSON.stringify({
+                    name: $id('contactName').value.trim(),
+                    phoneNumber: $id('contactPhone').value.trim(),
+                    email: emailVal || null
+                })
             });
             contacts = contacts.filter(c => c.id !== saved.id); contacts.push(saved);
             contacts.sort((a, b) => a.name.localeCompare(b.name));
@@ -139,6 +148,41 @@
         finally { button.disabled = false; }
     });
     $id('cancelContactEdit').addEventListener('click', resetForm);
+
+    const importBtn = $id('importContactCsvBtn');
+    if (importBtn) {
+        importBtn.addEventListener('click', async () => {
+            const fileInput = $id('contactCsvFile');
+            const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+            if (!file) {
+                notice('Please select a CSV or TXT file to upload.');
+                return;
+            }
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+            notice();
+            try {
+                const formData = new FormData();
+                formData.append('csvFile', file);
+                const res = await fetch(endpoint + '/import-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || data.error || 'Failed to import CSV');
+                notice(data.message || 'Contacts imported successfully!');
+                fileInput.value = '';
+                contacts = await request();
+                render();
+            } catch (err) {
+                notice(err.message);
+            } finally {
+                importBtn.disabled = false;
+                importBtn.innerHTML = '<i class="fas fa-file-import"></i> Import CSV';
+            }
+        });
+    }
+
     $id('contactSearch').addEventListener('input', render);
     $id('selectAllContacts').addEventListener('click', () => { filtered().forEach(c => selected.add(c.id)); syncSelection(); render(); });
     $id('clearAllContacts').addEventListener('click', () => { selected.clear(); syncSelection(); render(); });

@@ -9,5 +9,6 @@ import java.util.Collection;
 public interface ContactRepository extends JpaRepository<Contact, Long> {
     List<Contact> findByOwnerIdOrderByNameAsc(Long ownerId);
     Optional<Contact> findByIdAndOwnerId(Long id, Long ownerId);
+    Optional<Contact> findByOwnerIdAndPhoneNumber(Long ownerId, String phoneNumber);
     List<Contact> findByOwnerIdAndIdIn(Long ownerId, Collection<Long> ids);
 }

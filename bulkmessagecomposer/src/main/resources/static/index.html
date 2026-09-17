@@ -586,23 +586,24 @@
                 <div class="card-body">
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i>
-                        <strong>CSV Format:</strong> One phone number per line. CSV can have headers like "phone", "mobile", "number".<br>
-                        <strong>Example:</strong><br>
-                        <code>9823510523<br>7276022904<br>9049737589</code>
+                        <strong>Supported CSV / Contacts Format:</strong><br>
+                        • <strong>With Name, Mobile & Email:</strong> CSV headers like <code>name, mobile, email</code> (e.g. <code>John Doe, 9823510523, john@example.com</code>)<br>
+                        • <strong>Phone Numbers Only:</strong> One phone number per line (e.g. <code>9823510523</code>)<br>
+                        • <strong>Personalization:</strong> Both WhatsApp and Email dynamically start with <em>"Dear &lt;Name&gt;,"</em>!
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label><i class="fas fa-file-csv"></i> CSV/TXT File with Phone Numbers <span class="text-danger">*</span></label>
+                            <label><i class="fas fa-file-csv"></i> CSV/TXT File with Contacts (Phone/Email) <span class="text-danger">*</span></label>
                             <input type="file" class="form-control" id="bulkCsvFile" accept=".csv,.txt">
                             <button type="button" class="btn btn-link px-0 provide-contacts"><i class="fas fa-address-book me-1" aria-hidden="true"></i>Provide Contacts</button>
                             <span class="contact-selection-summary small text-muted ms-2" aria-live="polite">No contacts selected</span>
-                            <small class="text-muted">One phone number per line</small>
+                            <small class="text-muted">Columns: (name, mobile, email) or one phone number per line</small>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label><i class="fas fa-phone-volume"></i> Phone Limit <span class="text-danger">*</span></label>
+                            <label><i class="fas fa-phone-volume"></i> Recipient Limit <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="bulkTextPhoneLimit" min="1" max="100" value="100">
-                            <small class="text-muted">Only this many valid numbers will be processed</small>
+                            <small class="text-muted">Only this many valid recipients will be processed</small>
                         </div>
                     </div>
 
@@ -624,8 +625,8 @@
                     <div class="row mt-2">
                         <div class="col-md-6">
                             <label><i class="fas fa-clock"></i> Delay Between Messages (ms)</label>
-                                    <input type="number" class="form-control" id="bulkTextDelayMs" min="3000" step="500" value="3000">
-                            <small class="text-muted">Recommended: 3000-5000ms</small>
+                                    <input type="number" class="form-control" id="bulkTextDelayMs" min="1000" step="500" value="3000">
+                            <small class="text-muted">Recommended: 3000-5000ms for WhatsApp, 1000ms for Email</small>
                         </div>
                         <div class="col-md-6">
                             <label><i class="fas fa-random"></i> Randomize Delay</label>
@@ -636,9 +637,12 @@
                         </div>
                     </div>
 
-                    <div class="mt-3">
-                        <button class="btn btn-info" id="sendBulkTextBtn" disabled>
-                            <i class="fas fa-bolt"></i> Send Bulk Messages
+                    <div class="mt-3 d-flex flex-wrap gap-2">
+                        <button class="btn btn-info text-white" id="sendBulkTextBtn" disabled>
+                            <i class="fab fa-whatsapp"></i> Send Bulk Whatsapp Messages
+                        </button>
+                        <button class="btn btn-primary" id="sendEmailsBtn">
+                            <i class="fas fa-envelope"></i> Send Emails
                         </button>
                     </div>
 
@@ -820,15 +824,27 @@
             </div>
             <div class="modal-body">
                 <div id="contactsNotice" class="alert alert-danger d-none" role="alert"></div>
+
+                <div class="card mb-3"><div class="card-body p-3 bg-light rounded">
+                    <h6 class="mb-2"><i class="fas fa-file-csv text-primary me-1"></i> Upload CSV to Create / Update Contacts</h6>
+                    <p class="small text-muted mb-2">Upload a CSV or TXT file with columns <code>name, mobile, email</code> (or one phone number per line). Existing contacts with the same phone number will be updated automatically.</p>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <input type="file" id="contactCsvFile" class="form-control form-control-sm" style="max-width: 320px;" accept=".csv,.txt">
+                        <button type="button" id="importContactCsvBtn" class="btn btn-primary btn-sm"><i class="fas fa-file-import"></i> Import CSV</button>
+                    </div>
+                </div></div>
+
                 <div class="card mb-3"><div class="card-body p-4">
                     <h5 id="contactFormTitle">Create Contact</h5>
                     <form id="contactForm" class="row g-3 align-items-end">
-                        <div class="col-md-5"><label class="form-label" for="contactName">Name</label>
+                        <div class="col-md-4"><label class="form-label" for="contactName">Name</label>
                             <input id="contactName" class="form-control" maxlength="100" required></div>
-                        <div class="col-md-4"><label class="form-label" for="contactPhone">Phone Number</label>
+                        <div class="col-md-3"><label class="form-label" for="contactPhone">Phone Number</label>
                             <input id="contactPhone" class="form-control" inputmode="numeric" pattern="[0-9]{10,15}" maxlength="15" placeholder="9876543210" required></div>
-                        <div class="col-md-3 d-flex gap-2"><button id="saveContact" class="btn btn-success" type="submit">Create</button>
-                            <button id="cancelContactEdit" class="btn btn-secondary d-none" type="button">Cancel</button></div>
+                        <div class="col-md-3"><label class="form-label" for="contactEmail">Email</label>
+                            <input id="contactEmail" type="email" class="form-control" maxlength="150" placeholder="user@example.com"></div>
+                        <div class="col-md-2 d-flex gap-1"><button id="saveContact" class="btn btn-success btn-sm w-100" type="submit">Create</button>
+                            <button id="cancelContactEdit" class="btn btn-secondary btn-sm d-none" type="button">Cancel</button></div>
                     </form>
                 </div></div>
                 <div class="card"><div class="card-body p-4">
@@ -844,7 +860,7 @@
                     <p class="small text-muted">Select All selects the displayed contacts. Selections remain when searching or browsing A–Z. Clear All clears every selection.</p>
                     <div class="table-responsive dashboard-grid user-grid">
                         <table class="table table-striped table-hover align-middle mb-0">
-                            <thead class="table-dark"><tr><th>Select</th><th>Name</th><th>Phone Number</th><th>Actions</th></tr></thead>
+                            <thead class="table-dark"><tr><th>Select</th><th>Name</th><th>Phone Number</th><th>Email</th><th>Actions</th></tr></thead>
                             <tbody id="contactRows"></tbody>
                         </table>
                     </div>
@@ -1363,7 +1379,89 @@
                 showNotification('Failed to create batch: ' + errorMsg, 'danger');
             },
             complete: function() {
-                $('#sendBulkTextBtn').prop('disabled', false).html('<i class="fas fa-bolt"></i> Send Bulk Messages');
+                $('#sendBulkTextBtn').prop('disabled', false).html('<i class="fab fa-whatsapp"></i> Send Bulk Whatsapp Messages');
+            }
+        });
+    });
+
+    // Send Bulk HTML Emails
+    $('#sendEmailsBtn').click(function() {
+        const csvFile = $('#bulkCsvFile')[0].files[0];
+        const hasSelectedContacts = window.contactSelection && window.contactSelection.hasSelection();
+        const approvedMessageId = approvedGridState.text.selectedId;
+        const emailLimit = $('#bulkTextPhoneLimit').val() ? parseInt($('#bulkTextPhoneLimit').val()) : 100;
+        const delayMs = $('#bulkTextDelayMs').val() ? parseInt($('#bulkTextDelayMs').val()) : 1000;
+
+        if (!csvFile && !hasSelectedContacts) {
+            showNotification('Please provide recipients by selecting Contacts or uploading a CSV/TXT file', 'warning');
+            return;
+        }
+
+        if (!approvedMessageId) {
+            showNotification('Please select an approved message to send', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        window.contactSelection.appendRecipients(formData, csvFile);
+        formData.append('approvedMessageId', approvedMessageId);
+        formData.append('emailLimit', emailLimit);
+        formData.append('delayMs', delayMs);
+
+        $('#sendEmailsBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending Emails...');
+        $('#bulkTextProgress').show();
+        $('#bulkTextProgressBar').css('width', '50%').text('Dispatching...');
+        $('#bulkTextProgressStatus').text('Sending emails via configured SMTP...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-bulk-email',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000,
+            dataType: 'json',
+            success: function(response) {
+                $('#bulkTextProgressBar').css('width', '100%').text('100%');
+                $('#bulkTextProgressStatus').text('Email dispatch completed!');
+
+                let alertClass = response.success ? 'alert-success' : 'alert-warning';
+                let html = `<div class="alert ${alertClass}">`;
+                html += `<strong>✉️ Email Dispatch Report</strong><br>`;
+                html += `<strong>Status:</strong> ${response.status}<br>`;
+                html += `<strong>Batch ID:</strong> ${response.batchId}<br>`;
+                html += `<strong>Total Recipients:</strong> ${response.totalRecipients}<br>`;
+                html += `<strong>Successfully Sent:</strong> <span class="text-success fw-bold">${response.sentMessages}</span><br>`;
+                if (response.failedMessages > 0) {
+                    html += `<strong>Failed:</strong> <span class="text-danger fw-bold">${response.failedMessages}</span><br>`;
+                }
+                html += `<strong>Details:</strong> ${response.message}<br>`;
+                if (response.failedDetails && response.failedDetails.length > 0) {
+                    html += `<details class="mt-2"><summary class="text-danger cursor-pointer">View Failure Details (${response.failedDetails.length})</summary><ul class="mt-1 small">`;
+                    response.failedDetails.forEach(f => { html += `<li>${f}</li>`; });
+                    html += `</ul></details>`;
+                }
+                html += `</div>`;
+
+                $('#bulkTextResult').html(html);
+
+                $('#bulkCsvFile').val('');
+                $('input[name="bulkTextApprovedMessage"]').prop('checked', false);
+                approvedGridState.text.selectedId = null;
+                showNotification(`Emails processed: ${response.sentMessages} sent successfully`, response.success ? 'success' : 'warning');
+
+                setTimeout(() => {
+                    $('#bulkTextProgress').hide();
+                }, 4000);
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Failed to send emails';
+                $('#bulkTextResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                $('#bulkTextProgress').hide();
+                showNotification('Failed to send emails: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendEmailsBtn').prop('disabled', false).html('<i class="fas fa-envelope"></i> Send Emails');
             }
         });
     });

@@ -1,0 +1,6 @@
+{
+  "name": "Bulk SMS & Email Messaging System",
+  "description": "Bulk WhatsApp messaging and HTML email dispatching system with contact CSV management and personalized greetings",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

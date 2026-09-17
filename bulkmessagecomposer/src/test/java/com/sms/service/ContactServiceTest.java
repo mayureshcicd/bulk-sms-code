@@ -59,6 +59,26 @@ class ContactServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.recipients(null, List.of()));
         verifyNoInteractions(contacts);
     }
+    @Test void recipientsDetailedExtractsNamePhoneAndEmailFromCsv() throws Exception {
+        String csvContent = "name,mobile,email\nRahul,9876543210,rahul@gmail.com\n";
+        var csv = new MockMultipartFile("csv", "recipients.csv", "text/csv", csvContent.getBytes());
+        List<ContactService.RecipientDetail> detailed = service.recipientsDetailed(csv, null);
+        assertEquals(1, detailed.size());
+        assertEquals("Rahul", detailed.get(0).name());
+        assertEquals("919876543210@c.us", detailed.get(0).formattedChatId());
+        assertEquals("rahul@gmail.com", detailed.get(0).email());
+    }
+    @Test void importFromCsvCreatesAndUpdatesContacts() throws Exception {
+        String csvContent = "name,mobile,email\nRahul,9876543210,rahul@gmail.com\n";
+        var csv = new MockMultipartFile("csv", "import.csv", "text/csv", csvContent.getBytes());
+        when(contacts.findByOwnerIdAndPhoneNumber(7L, "9876543210")).thenReturn(Optional.empty());
+        when(contacts.save(any())).thenAnswer(call -> call.getArgument(0));
+
+        Map<String, Object> result = service.importFromCsv(csv);
+        assertEquals(1, result.get("created"));
+        assertEquals(0, result.get("updated"));
+        verify(contacts).save(any(Contact.class));
+    }
     private Contact contact(Long id, String phone) {
         Contact c = new Contact(); ReflectionTestUtils.setField(c, "id", id); c.setPhoneNumber(phone); return c;
     }
