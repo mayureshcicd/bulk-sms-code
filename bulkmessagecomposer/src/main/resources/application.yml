@@ -1,0 +1,55 @@
+server:
+  tomcat:
+    threads:
+      max: 200
+  servlet:
+    context-path: /bulk-sms
+  port: 8080
+
+openwa:
+  api:
+    url: ${OPENWA_BASE_URL:http://localhost:2785/api}
+    api-key: ${API_KEY:owa_k1_9cb466339fe952e662038738672bcb39218d7ffb265cbfbc70ee374a4f355acb}
+
+spring:
+  application:
+    name: bulk-sms
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:message_approval}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:mvr#2023}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+app:
+  company-name: ${COMPANY_NAME:ATOZ GUMMING WORK INDIA PVT. LTD.}
+
+hardware-binding:
+  enabled: ${HARDWARE_BINDING_ENABLED:false}
+  registration-file: ${HARDWARE_REGISTRATION_FILE:license/registered-system.dat}
+  dmi-directory: ${HOST_DMI_DIRECTORY:/host-system/dmi}
+
+logging:
+  level:
+    com.sms: DEBUG
+
+
+trial:
+  check-days: ${check_days:true}
+
+message-approval:
+  base-url: ${MESSAGE_APPROVAL_URL:http://localhost:8081}
+  integration-key: ${MESSAGE_INTEGRATION_KEY:change-this-in-production}
+
+whatsapp:
+  bulk:
+    min-delay-ms: ${WHATSAPP_BULK_MIN_DELAY_MS:3000}
+    max-recipients: ${WHATSAPP_BULK_MAX_RECIPIENTS:100}
+    cooldown-after: ${WHATSAPP_BULK_COOLDOWN_AFTER:50}
+    cooldown-ms: ${WHATSAPP_BULK_COOLDOWN_MS:60000}

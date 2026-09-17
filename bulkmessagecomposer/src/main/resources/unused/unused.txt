@@ -1,0 +1,72 @@
+/*
+
+    public byte[] compressVideo(byte[] videoBytes) throws Exception {
+        // Save input bytes to temp file
+        File source = new File("input.mp4");
+        File target = new File("output_compressed.mp4");
+        Files.write(source.toPath(), videoBytes);
+        // ✅ Get original video information
+        MultimediaObject multimediaObject = new MultimediaObject(source);
+        MultimediaInfo multimediaInfo = multimediaObject.getInfo();
+        VideoInfo videoInfo = multimediaInfo.getVideo();
+        int originalWidth = videoInfo.getSize().getWidth();
+        int originalHeight = videoInfo.getSize().getHeight();
+        VideoSize targetSize = calculateOptimalSize(originalWidth, originalHeight);
+        VideoAttributes video = new VideoAttributes();
+        video.setCodec("h264");
+        video.setBitRate(800000); // Lower bitrate for smaller file
+        video.setFrameRate(24);
+        //video.setSize(new VideoSize(854, 480)); // Reduce resolution to 480p
+        video.setSize(targetSize);
+        AudioAttributes audio = new AudioAttributes();
+        audio.setCodec("aac");
+        audio.setBitRate(128000);
+        audio.setChannels(2);
+
+        EncodingAttributes attrs = new EncodingAttributes();
+        attrs.setOutputFormat("mp4");
+        attrs.setVideoAttributes(video);
+        attrs.setAudioAttributes(audio);
+
+        Encoder encoder = new Encoder();
+        encoder.encode(new MultimediaObject(source), target, attrs);
+
+        byte[] compressed = Files.readAllBytes(target.toPath());
+
+        // Cleanup
+        source.delete();
+        target.delete();
+
+        return compressed;
+    }
+
+    private VideoSize calculateOptimalSize(int originalWidth, int originalHeight) {
+        // ✅ Define target resolutions based on original size
+        int maxPixels = 1280 * 720; // 720p - good balance for WhatsApp
+
+        // If original is already smaller than 720p, keep it
+        if (originalWidth * originalHeight <= maxPixels) {
+            return new VideoSize(originalWidth, originalHeight);
+        }
+
+        // ✅ Calculate scaling factor to fit within 720p
+        double scaleFactor = Math.sqrt((double) maxPixels / (originalWidth * originalHeight));
+
+        int targetWidth = (int) (originalWidth * scaleFactor);
+        int targetHeight = (int) (originalHeight * scaleFactor);
+
+        // ✅ Ensure dimensions are even numbers (required for some codecs)
+        targetWidth = (targetWidth / 2) * 2;
+        targetHeight = (targetHeight / 2) * 2;
+
+        // ✅ Ensure minimum resolution (not too small)
+        if (targetWidth < 480) {
+            double minScale = 480.0 / Math.min(originalWidth, originalHeight);
+            targetWidth = (int) (originalWidth * minScale);
+            targetHeight = (int) (originalHeight * minScale);
+            targetWidth = (targetWidth / 2) * 2;
+            targetHeight = (targetHeight / 2) * 2;
+        }
+
+        return new VideoSize(targetWidth, targetHeight);
+    }*/

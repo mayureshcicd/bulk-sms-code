@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bulk Messenger</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        :root {
+            --whatsapp-green: #25D366;
+            --whatsapp-teal: #128C7E;
+            --whatsapp-light: #DCF8C6;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            padding-top: 30px;
+            padding-bottom: 30px;
+            flex: 1;
+        }
+
+        .footer {
+            background: linear-gradient(135deg, #0f3460, #16213e);
+            color: #ffffff;
+            padding: 20px 0;
+            margin-top: auto;
+            border-top: 2px solid var(--whatsapp-green);
+        }
+
+        .footer-content {
+            text-align: center;
+        }
+
+        .footer-content p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .footer-content i {
+            color: var(--whatsapp-green);
+            margin: 0 5px;
+        }
+
+        .footer-content .heart {
+            color: #ff4757;
+            animation: heartbeat 1.5s ease infinite;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .footer-content .whatsapp-small {
+            color: var(--whatsapp-green);
+        }
+
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+            border: none;
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .card-header {
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--whatsapp-teal), var(--whatsapp-green));
+            border: none;
+        }
+
+        .qr-container {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .status-badge {
+            font-size: 14px;
+            padding: 8px 20px;
+            border-radius: 50px;
+            display: inline-block;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .status-connected {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            color: #155724;
+            border: 1px solid #28a745;
+        }
+
+        .status-pending {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            color: #856404;
+            border: 1px solid #ffc107;
+        }
+
+        .status-error {
+            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+            color: #721c24;
+            border: 1px solid #dc3545;
+        }
+
+        .btn-connect {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            border: none;
+            padding: 12px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-connect:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4);
+        }
+
+        .btn-connect:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .nav-tabs { border-bottom: 2px solid #dee2e6; }
+
+        .nav-tabs .nav-link {
+            color: #495057;
+            font-weight: 600;
+            border: none;
+            padding: 12px 20px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tabs .nav-link:hover {
+            border-color: transparent;
+            color: #128C7E;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            color: white;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .nav-tabs .nav-link i { margin-right: 8px; }
+
+        .tab-content { padding: 20px 0; }
+
+        .progress { height: 30px; border-radius: 15px; }
+
+        .progress-bar {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            font-weight: 600;
+        }
+
+        .stats-card {
+            border-left: 4px solid;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: transform 0.2s;
+        }
+
+        .stats-card:hover { transform: translateX(5px); }
+
+        .stats-success { border-left-color: #28a745; }
+        .stats-failed { border-left-color: #dc3545; }
+        .stats-total { border-left-color: #17a2b8; }
+
+        .connected-info {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border: 2px solid #28a745;
+            border-radius: 10px;
+            animation: slideDown 0.5s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn-success, .btn-info, .btn-warning, .btn-danger {
+            transition: all 0.3s ease;
+        }
+
+        .whatsapp-icon {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="text-center mb-4">
+        <i class="fab fa-whatsapp whatsapp-icon" style="font-size: 70px; color: #25D366;"></i>
+        <h1 class="text-white mt-2">WhatsApp Bulk Messenger</h1>
+        <p class="text-white-50">Enterprise Bulk Messaging Solution</p>
+    </div>
+
+    <!-- Connect Section -->
+    <div class="card">
+        <div class="card-header text-white">
+            <i class="fas fa-plug"></i> Step 1: Connect WhatsApp
+        </div>
+        <div class="card-body text-center">
+            <div>
+                <button class="btn btn-primary btn-connect" id="connectBtn">
+                    <i class="fas fa-link"></i> Connect WhatsApp
+                </button>
+            </div>
+            <div id="statusContainer" class="mt-3">
+                <span id="statusBadge" class="status-badge status-pending">
+                    <i class="fas fa-circle"></i> Not Connected
+                </span>
+            </div>
+            <div id="qrContainer" style="display:none;" class="mt-3">
+                <div class="qr-container">
+                    <h5><i class="fas fa-qrcode"></i> Scan QR Code</h5>
+                    <img id="qrImage" src="" alt="QR Code" style="max-width: 250px; border: 2px solid #ddd; border-radius: 10px;">
+                    <p class="text-muted mt-2">
+                        <i class="fab fa-whatsapp"></i> Open WhatsApp → Settings → Linked Devices → Link a Device
+                    </p>
+                    <div class="alert alert-info mt-2">
+                        <small><i class="fas fa-info-circle"></i> QR code refreshes every 20 seconds. Scan quickly!</small>
+                    </div>
+                </div>
+            </div>
+            <div id="connectedInfo" style="display:none;" class="mt-3">
+                <div class="alert connected-info">
+                    <i class="fas fa-check-circle"></i> <strong>Connected Successfully!</strong><br>
+                    <strong><i class="fas fa-phone"></i> Phone:</strong> <span id="phoneNumber"></span><br>
+                    <strong><i class="fas fa-user"></i> Name:</strong> <span id="pushName"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs for different messaging options -->
+    <ul class="nav nav-tabs" id="messagingTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="single-tab" data-bs-toggle="tab" data-bs-target="#single" type="button" role="tab">
+                <i class="fas fa-envelope"></i> Single Message
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bulk-text-tab" data-bs-toggle="tab" data-bs-target="#bulk-text" type="button" role="tab">
+                <i class="fas fa-layer-group"></i> Bulk Text
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="document-single-tab" data-bs-toggle="tab" data-bs-target="#document-single" type="button" role="tab">
+                <i class="fas fa-file"></i> Single Document
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="document-bulk-tab" data-bs-toggle="tab" data-bs-target="#document-bulk" type="button" role="tab">
+                <i class="fas fa-users"></i> Bulk Document (CSV)
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="messagingTabsContent">
+        <!-- Tab 1: Single Message -->
+        <div class="tab-pane fade show active" id="single" role="tabpanel">
+            <div class="card">
+                <div class="card-header text-white">
+                    <i class="fas fa-envelope"></i> Send Single Message
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label><i class="fas fa-phone"></i> Phone Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="singleNumber" placeholder="e.g., 919545646661">
+                            <small class="text-muted">Include country code without '+' or '00'</small>
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label><i class="fas fa-comment"></i> Message <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="singleMessage" rows="3" placeholder="Enter your message..."></textarea>
+                        </div>
+                    </div>
+                    <button class="btn btn-success" id="sendSingleBtn" disabled>
+                        <i class="fas fa-paper-plane"></i> Send Message
+                    </button>
+                    <div id="singleResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Bulk Text Messages -->
+        <div class="tab-pane fade" id="bulk-text" role="tabpanel">
+            <div class="card">
+                <div class="card-header text-white">
+                    <i class="fas fa-layer-group"></i> Send Bulk Text Messages
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>CSV Format:</strong> One phone number per line. CSV can have headers like "phone", "mobile", "number".<br>
+                        <strong>Example:</strong><br>
+                        <code>919545646661<br>917774033442<br>918552081938</code>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label><i class="fas fa-file-csv"></i> CSV/TXT File with Phone Numbers <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="bulkCsvFile" accept=".csv,.txt">
+                            <small class="text-muted">One phone number per line</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label><i class="fas fa-comment-dots"></i> Message <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="bulkTextMessage" rows="4" placeholder="Enter your bulk message..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <label><i class="fas fa-clock"></i> Delay Between Messages (ms)</label>
+                            <input type="number" class="form-control" id="bulkTextDelayMs" value="3000">
+                            <small class="text-muted">Recommended: 3000-5000ms</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label><i class="fas fa-random"></i> Randomize Delay</label>
+                            <select class="form-control" id="bulkTextRandomizeDelay">
+                                <option value="false">No</option>
+                                <option value="true">Yes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button class="btn btn-info" id="sendBulkTextBtn" disabled>
+                            <i class="fas fa-bolt"></i> Send Bulk Messages
+                        </button>
+                    </div>
+
+                    <div id="bulkTextProgress" style="display:none;" class="mt-3">
+                        <div class="progress">
+                            <div id="bulkTextProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                 style="width: 0%">0%</div>
+                        </div>
+                        <div id="bulkTextProgressStatus" class="text-muted mt-2 small"></div>
+                    </div>
+
+                    <div id="bulkTextResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Single Document -->
+        <div class="tab-pane fade" id="document-single" role="tabpanel">
+            <div class="card">
+                <div class="card-header text-white">
+                    <i class="fas fa-file"></i> Send Document to Single Recipient
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label><i class="fas fa-phone"></i> Phone Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="docNumber" placeholder="e.g., 919545646661">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label><i class="fas fa-caption"></i> Caption</label>
+                            <input type="text" class="form-control" id="docCaption" placeholder="File caption (optional)">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label><i class="fas fa-upload"></i> Select File <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="docFile" accept="image/*,.pdf,.doc,.docx,.txt">
+                            <small class="text-muted">Max size: 50MB</small>
+                        </div>
+                    </div>
+                    <button class="btn btn-warning" id="sendDocumentBtn" disabled>
+                        <i class="fas fa-upload"></i> Send Document
+                    </button>
+                    <div id="docResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Bulk Document with CSV -->
+        <div class="tab-pane fade" id="document-bulk" role="tabpanel">
+            <div class="card">
+                <div class="card-header text-white">
+                    <i class="fas fa-users"></i> Bulk Send Document with CSV
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>CSV Format:</strong> One phone number per line. CSV can have headers like "phone", "mobile", "number".<br>
+                        <strong>Example:</strong><br>
+                        <code>919545646661<br>917774033442<br>918552081938</code>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label><i class="fas fa-file-csv"></i> CSV/TXT File with Phone Numbers <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="csvFile" accept=".csv,.txt">
+                            <small class="text-muted">One phone number per line</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label><i class="fas fa-file"></i> Document File <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="bulkDocFile" accept="image/*,.pdf,.doc,.docx,.txt">
+                            <small class="text-muted">Document to send to all recipients</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label><i class="fas fa-caption"></i> Custom Caption (Optional)</label>
+                        <input type="text" class="form-control" id="bulkCaption"
+                               value="Dear User, please find attached document.">
+                    </div>
+
+                    <div class="mb-3">
+                        <label><i class="fas fa-clock"></i> Delay Between Messages (ms)</label>
+                        <input type="number" class="form-control" id="bulkDocDelayMs" value="3000">
+                        <small class="text-muted">Delay between each message to avoid rate limiting</small>
+                    </div>
+
+                    <button class="btn btn-danger" id="sendBulkDocumentBtn" disabled>
+                        <i class="fas fa-paper-plane"></i> Send Document to All Recipients
+                    </button>
+
+                    <div id="bulkDocProgress" style="display:none;" class="mt-3">
+                        <div class="progress">
+                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                 style="width: 0%">0%</div>
+                        </div>
+                        <div id="progressStatus" class="text-muted mt-2 small"></div>
+                    </div>
+
+                    <div id="bulkDocResult" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="footer">
+    <div class="container">
+        <div class="footer-content">
+            <p>
+                <i class="fas fa-code"></i> Prepared with
+                <i class="fas fa-user human-icon"></i> by
+                <strong>Mayuresh Ratnaparkhi</strong>
+                <i class="fab fa-whatsapp whatsapp-small"></i>
+                <strong> +91 95456 46661</strong>
+            </p>
+            <p class="mt-1">
+                <small>
+                    <i class="fas fa-envelope"></i> mayureshratnaparkhi@gmail.com |
+                    <i class="fas fa-calendar-alt"></i> © 2026 WhatsApp Bulk Messenger
+                </small>
+            </p>
+        </div>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    let isConnected = false;
+    let currentBatchInterval;
+    let qrCheckInterval = null;
+
+    const baseUrl = window.location.pathname.includes('/bulk-sms/') ? '/bulk-sms' : '';
+
+    // Check status once on page load
+    function checkStatus() {
+        console.log('Checking status...');
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/status',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                console.log('Status response:', response);
+                updateUI(response);
+            },
+            error: function(xhr) {
+                console.error('Status check failed:', xhr);
+                $('#statusBadge').removeClass('status-pending').addClass('status-error')
+                    .html('<i class="fas fa-exclamation-triangle"></i> Connection Error');
+            }
+        });
+    }
+
+    function updateUI(response) {
+        if (response.status === 'ready') {
+            if (!isConnected) {
+                isConnected = true;
+                $('#statusBadge').removeClass('status-pending').addClass('status-connected')
+                    .html('<i class="fas fa-check-circle"></i> ✓ Connected');
+                $('#connectedInfo').fadeIn();
+                $('#phoneNumber').text(response.phone || 'Unknown');
+                $('#pushName').text(response.pushName || 'Unknown');
+                $('#qrContainer').hide();
+                $('#connectBtn').prop('disabled', true).html('<i class="fas fa-check"></i> Connected');
+                $('#sendSingleBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', false);
+                showNotification('WhatsApp Connected Successfully!', 'success');
+
+                // Stop QR polling if active
+                if (qrCheckInterval) {
+                    clearInterval(qrCheckInterval);
+                    qrCheckInterval = null;
+                }
+            }
+        } else if (response.status === 'qr_ready') {
+            isConnected = false;
+            $('#statusBadge').removeClass('status-pending').addClass('status-pending')
+                .html('<i class="fas fa-qrcode"></i> Scan QR Code');
+            $('#sendSingleBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', true);
+            $('#connectedInfo').hide();
+            $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+        } else if (response.status === 'not_connected') {
+            isConnected = false;
+            $('#statusBadge').removeClass('status-pending').addClass('status-pending')
+                .html('<i class="fas fa-circle"></i> Not Connected');
+            $('#connectedInfo').hide();
+            $('#qrContainer').hide();
+            $('#sendSingleBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', true);
+            $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+
+            if (qrCheckInterval) {
+                clearInterval(qrCheckInterval);
+                qrCheckInterval = null;
+            }
+        } else if (response.status === 'error') {
+            isConnected = false;
+            $('#statusBadge').removeClass('status-pending').addClass('status-error')
+                .html('<i class="fas fa-exclamation-triangle"></i> Error');
+            $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+        }
+    }
+
+    function showNotification(message, type) {
+        const notification = $(`
+            <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3"
+                 style="z-index: 9999; min-width: 300px;" role="alert">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `);
+        $('body').append(notification);
+        setTimeout(() => notification.fadeOut(() => notification.remove()), 5000);
+    }
+
+    $('#connectBtn').click(function() {
+        $('#connectBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Connecting...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/connect',
+            type: 'POST',
+            success: function(response) {
+                console.log('Connect response:', response);
+                if (response.error) {
+                    showNotification('Error: ' + response.error, 'danger');
+                    $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+                    return;
+                }
+
+                if (response.status === 'already_connected') {
+                    showNotification('Already connected!', 'info');
+                    checkStatus();
+                } else if (response.qrCode) {
+                    $('#qrContainer').fadeIn();
+                    $('#qrImage').attr('src', response.qrCode);
+                    $('#statusBadge').html('<i class="fas fa-qrcode"></i> Scan QR Code');
+                    showNotification('QR Code generated! Scan with WhatsApp mobile app.', 'info');
+
+                    // Poll every 5 seconds to check if QR was scanned (user connected phone)
+                    if (qrCheckInterval) clearInterval(qrCheckInterval);
+                    qrCheckInterval = setInterval(function() {
+                        console.log('Polling for connection...');
+                        $.ajax({
+                            url: baseUrl + '/api/whatsapp/status',
+                            type: 'GET',
+                            dataType: 'json',
+                            success: function(statusResponse) {
+                                if (statusResponse.status === 'ready') {
+                                    updateUI(statusResponse);
+                                    showNotification('WhatsApp Connected! You can now send messages.', 'success');
+                                }
+                            }
+                        });
+                    }, 5000);
+
+                    // Stop polling after 2 minutes
+                    setTimeout(() => {
+                        if (qrCheckInterval) {
+                            clearInterval(qrCheckInterval);
+                            qrCheckInterval = null;
+                        }
+                    }, 120000);
+                }
+            },
+            error: function(xhr) {
+                let errorMsg = 'Connection failed: ';
+                if (xhr.responseJSON?.error) {
+                    errorMsg += xhr.responseJSON.error;
+                } else if (xhr.status === 0) {
+                    errorMsg += 'Cannot connect to server. Is Spring Boot running?';
+                } else {
+                    errorMsg += 'Server error (HTTP ' + xhr.status + ')';
+                }
+                showNotification(errorMsg, 'danger');
+                $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+            }
+        });
+    });
+
+    // Send Single Message
+    $('#sendSingleBtn').click(function() {
+        const number = $('#singleNumber').val().trim();
+        const message = $('#singleMessage').val().trim();
+
+        if (!number || !message) {
+            showNotification('Please enter both number and message', 'warning');
+            return;
+        }
+
+        if (!number.match(/^\d+$/)) {
+            showNotification('Please enter a valid phone number (digits only, with country code)', 'warning');
+            return;
+        }
+
+        $('#sendSingleBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-text',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ chatId: number, text: message }),
+            dataType: 'json',
+            success: function(response) {
+                $('#singleResult').html('<div class="alert alert-success">✅ Sent successfully! Message ID: ' + (response.messageId || 'Success') + '</div>');
+                $('#singleNumber').val('');
+                $('#singleMessage').val('');
+                setTimeout(() => $('#singleResult').empty(), 3000);
+                showNotification('Message sent successfully!', 'success');
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Unknown error';
+                $('#singleResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                showNotification('Failed to send message: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendSingleBtn').prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Message');
+            }
+        });
+    });
+
+    // Send Bulk Text Messages with CSV
+    $('#sendBulkTextBtn').click(function() {
+        const csvFile = $('#bulkCsvFile')[0].files[0];
+        const message = $('#bulkTextMessage').val().trim();
+        const delayMs = parseInt($('#bulkTextDelayMs').val()) || 3000;
+        const randomizeDelay = $('#bulkTextRandomizeDelay').val() === 'true';
+
+        if (!csvFile || !message) {
+            showNotification('Please select CSV file and enter message', 'warning');
+            return;
+        }
+
+        if (!csvFile.name.match(/\.(csv|txt)$/i)) {
+            showNotification('File must be .csv or .txt format', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('csv', csvFile);
+        formData.append('message', message);
+        formData.append('delayMs', delayMs);
+        formData.append('randomizeDelay', randomizeDelay);
+
+        $('#sendBulkTextBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating batch...');
+        $('#bulkTextProgress').show();
+        $('#bulkTextProgressBar').css('width', '0%').text('0%');
+        $('#bulkTextProgressStatus').text('Uploading CSV file...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-bulk-text',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000,
+            dataType: 'json',
+            xhr: function() {
+                const xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener("progress", function(evt) {
+                    if (evt.lengthComputable) {
+                        const percentComplete = Math.round((evt.loaded / evt.total) * 100);
+                        $('#bulkTextProgressBar').css('width', percentComplete + '%').text(percentComplete + '%');
+                        $('#bulkTextProgressStatus').text('Uploading file: ' + percentComplete + '%');
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                console.log('Batch response:', response);
+                $('#bulkTextProgressBar').css('width', '100%').text('100%');
+                $('#bulkTextProgressStatus').text('Batch created! Processing...');
+
+                let html = '<div class="alert alert-info">';
+                html += '<strong>✅ Batch Created!</strong><br>';
+                html += '<strong>Batch ID:</strong> ' + response.batchId + '<br>';
+                html += '<strong>Status:</strong> <span id="batchStatusText">' + response.status + '</span><br>';
+                html += '<strong>Total Messages:</strong> ' + response.totalRecipients + '<br>';
+                html += '<strong>Message:</strong> ' + response.message + '<br>';
+                html += '<strong>Delay:</strong> ' + response.delayMs + ' ms<br>';
+                html += '<div id="batchProgress" class="mt-2"></div>';
+                html += '</div>';
+
+                $('#bulkTextResult').html(html);
+                startPollingBatchStatus(response.batchId);
+                $('#bulkCsvFile').val('');
+                $('#bulkTextMessage').val('');
+                showNotification(`Batch ${response.batchId} created with ${response.totalRecipients} messages`, 'success');
+
+                setTimeout(() => {
+                    $('#bulkTextProgress').hide();
+                }, 3000);
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Unknown error';
+                $('#bulkTextResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                $('#bulkTextProgress').hide();
+                showNotification('Failed to create batch: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendBulkTextBtn').prop('disabled', false).html('<i class="fas fa-bolt"></i> Send Bulk Messages');
+            }
+        });
+    });
+
+    function startPollingBatchStatus(batchId) {
+        if (currentBatchInterval) clearInterval(currentBatchInterval);
+        currentBatchInterval = setInterval(function() {
+            $.ajax({
+                url: baseUrl + '/api/whatsapp/batch-status/' + batchId,
+                type: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    console.log('Batch status:', response);
+                    $('#batchStatusText').text(response.status);
+                    const sent = response.sentMessages || 0;
+                    const total = response.totalMessages || 0;
+                    const percent = total > 0 ? Math.round((sent / total) * 100) : 0;
+                    let progressHtml = '<div class="progress mt-2" style="height: 20px;">';
+                    progressHtml += '<div class="progress-bar progress-bar-striped progress-bar-animated" ';
+                    progressHtml += 'style="width: ' + percent + '%">' + percent + '%</div>';
+                    progressHtml += '</div>';
+                    progressHtml += '<small class="text-muted">Sent: ' + sent + ' / ' + total + '</small>';
+                    if (response.failedMessages > 0) {
+                        progressHtml += '<br><small class="text-danger">Failed: ' + response.failedMessages + '</small>';
+                    }
+                    $('#batchProgress').html(progressHtml);
+                    if (response.status === 'completed') {
+                        clearInterval(currentBatchInterval);
+                        $('#batchStatusText').html('<span class="text-success">✓ completed</span>');
+                        showNotification('All messages sent successfully!', 'success');
+                    } else if (response.status === 'failed') {
+                        clearInterval(currentBatchInterval);
+                        $('#batchStatusText').html('<span class="text-danger">✗ failed</span>');
+                        showNotification('Some messages failed to send', 'warning');
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Failed to get batch status:', xhr);
+                }
+            });
+        }, 3000);
+    }
+
+    // Send Single Document
+    $('#sendDocumentBtn').click(function() {
+        const number = $('#docNumber').val().trim();
+        const caption = $('#docCaption').val().trim();
+        const file = $('#docFile')[0].files[0];
+
+        if (!number || !file) {
+            showNotification('Please enter number and select a file', 'warning');
+            return;
+        }
+
+        if (!number.match(/^\d+$/)) {
+            showNotification('Please enter a valid phone number (digits only, with country code)', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('chatId', number);
+        formData.append('caption', caption || 'Here is your file from OpenWA');
+        formData.append('file', file);
+
+        $('#sendDocumentBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-document',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function(response) {
+                $('#docResult').html('<div class="alert alert-success">✅ Document sent successfully! Message ID: ' + (response.messageId || 'Success') + '</div>');
+                $('#docNumber').val('');
+                $('#docCaption').val('');
+                $('#docFile').val('');
+                setTimeout(() => $('#docResult').empty(), 3000);
+                showNotification('Document sent successfully!', 'success');
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Unknown error';
+                $('#docResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                showNotification('Failed to send document: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendDocumentBtn').prop('disabled', false).html('<i class="fas fa-upload"></i> Send Document');
+            }
+        });
+    });
+
+    // Send Bulk Document with CSV
+    $('#sendBulkDocumentBtn').click(function() {
+        const csvFile = $('#csvFile')[0].files[0];
+        const documentFile = $('#bulkDocFile')[0].files[0];
+        const caption = $('#bulkCaption').val().trim() || "Dear User, please find attached document.";
+        const delayMs = parseInt($('#bulkDocDelayMs').val()) || 3000;
+
+        if (!csvFile || !documentFile) {
+            showNotification('Please select both CSV file and Document file', 'warning');
+            return;
+        }
+
+        if (!csvFile.name.match(/\.(csv|txt)$/i)) {
+            showNotification('CSV file must be .csv or .txt format', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('csv', csvFile);
+        formData.append('file', documentFile);
+        formData.append('caption', caption);
+        formData.append('delayMs', delayMs);
+
+        $('#sendBulkDocumentBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+        $('#bulkDocProgress').show();
+        $('#progressBar').css('width', '0%').text('0%');
+        $('#progressStatus').text('Reading CSV file and sending messages...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-document-bulk',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000,
+            dataType: 'json',
+            xhr: function() {
+                const xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener("progress", function(evt) {
+                    if (evt.lengthComputable) {
+                        const percentComplete = Math.round((evt.loaded / evt.total) * 100);
+                        $('#progressBar').css('width', percentComplete + '%').text(percentComplete + '%');
+                        $('#progressStatus').text('Uploading files: ' + percentComplete + '%');
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                $('#progressBar').css('width', '100%').text('100%');
+                $('#progressStatus').text('Complete!');
+
+                let html = '<div class="alert alert-success">';
+                html += '<strong>✅ Bulk Send Completed!</strong><br>';
+                html += '<div class="row mt-2">';
+                html += '<div class="col-md-4"><div class="stats-card stats-total p-2"><strong>Total:</strong> ' + response.totalRecipients + '</div></div>';
+                html += '<div class="col-md-4"><div class="stats-card stats-success p-2"><strong>Success:</strong> ' + response.successCount + '</div></div>';
+                html += '<div class="col-md-4"><div class="stats-card stats-failed p-2"><strong>Failed:</strong> ' + response.failureCount + '</div></div>';
+                html += '</div>';
+                html += '<strong>Document:</strong> ' + response.documentName + '<br>';
+                html += '<strong>Caption:</strong> ' + response.caption + '<br>';
+                html += '</div>';
+
+                if (response.details && response.details.length > 0) {
+                    html += '<div class="mt-2">';
+                    html += '<button class="btn btn-sm btn-outline-info" onclick="$(\'#detailsTable\').toggle()">Show/Hide Details</button>';
+                    html += '<div id="detailsTable" style="display:none; margin-top:10px; max-height:300px; overflow-y:auto;">';
+                    html += '<table class="table table-sm table-bordered">';
+                    html += '<thead class="table-dark"><tr><th>Phone Number</th><th>Status</th><th>Message ID/Error</th></tr></thead>';
+                    html += '<tbody>';
+
+                    for (let detail of response.details) {
+                        let statusClass = detail.status === 'success' ? 'text-success' : 'text-danger';
+                        html += `<tr>
+                            <td>${detail.phoneNumber}</td>
+                            <td class="${statusClass}"><strong>${detail.status}</strong></td>
+                            <td><small>${detail.messageId || detail.error || '-'}</small></td>
+                        </tr>`;
+                    }
+
+                    html += '</tbody></table></div></div>';
+                }
+
+                $('#bulkDocResult').html(html);
+                $('#csvFile').val('');
+                $('#bulkDocFile').val('');
+                showNotification(`Bulk send completed! ${response.successCount}/${response.totalRecipients} successful`, 'success');
+
+                setTimeout(() => {
+                    $('#bulkDocProgress').hide();
+                }, 5000);
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Unknown error';
+                $('#bulkDocResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                $('#bulkDocProgress').hide();
+                showNotification('Failed to send bulk documents: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendBulkDocumentBtn').prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Document to All Recipients');
+            }
+        });
+    });
+
+    // Initial check - only once on page load
+    checkStatus();
+
+    $(window).on('beforeunload', function() {
+        if (currentBatchInterval) clearInterval(currentBatchInterval);
+        if (qrCheckInterval) clearInterval(qrCheckInterval);
+    });
+</script>
+</body>
+</html>

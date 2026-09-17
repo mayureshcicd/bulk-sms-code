@@ -1,0 +1,60 @@
+server:
+  port: 8081
+
+# Enables the complete incoming WhatsApp message module. Set the environment
+# variable ALLOW_INCOMING_MESSAGE=false to hide the UI and unregister its URLs.
+allow-incoming-message: ${ALLOW_INCOMING_MESSAGE:true}
+
+spring:
+  application:
+    name: MessageApprovalSystem
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:message_approval}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:mvr#2023}
+    driver-class-name: org.postgresql.Driver
+    hikari: 
+      maximum-pool-size: 20
+      minimum-idle: 10
+      idle-timeout: 600000
+      connection-timeout: 30000
+      max-lifetime: 1740000
+      pool-name: MessageApprovalConnection
+      leak-detection-threshold: 5000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+app:
+  upload-dir: uploads
+  integration-key: ${MESSAGE_INTEGRATION_KEY:change-this-in-production}
+  company-name: ${COMPANY_NAME:ATOZ GUMMING WORK INDIA PVT. LTD.}
+
+hardware-binding:
+  enabled: ${HARDWARE_BINDING_ENABLED:false}
+  registration-file: ${HARDWARE_REGISTRATION_FILE:license/registered-system.dat}
+  dmi-directory: ${HOST_DMI_DIRECTORY:/host-system/dmi}
+
+bulk-composer:
+  base-url: ${BULK_COMPOSER_URL:http://localhost:8080/bulk-sms}
+
+openwa:
+  api:
+    base-url: ${OPENWA_BASE_URL:http://localhost:2785/api}
+    key: ${OPENWA_API_KEY:${API_KEY:}}
+  webhook:
+    url: ${OPENWA_WEBHOOK_URL:http://message-approve-api:8081/api/openwa/webhook}
+    secret: ${OPENWA_WEBHOOK_SECRET:change-this-openwa-webhook-secret}
+
+trial:
+  check-days: ${check_days:true}

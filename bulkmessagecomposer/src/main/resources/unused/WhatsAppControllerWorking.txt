@@ -1,0 +1,550 @@
+package com.sms.controller;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sms.config.OpenWAConfig;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.GZIPOutputStream;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/whatsapp")
+@CrossOrigin(origins = "*")
+@RequiredArgsConstructor
+public class WhatsAppControllerWorking {
+
+    private final OpenWAConfig openwaConfig;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+
+
+    private String sessionId;
+    private String sessionName;
+
+    private final Map<String, Object> sessionCache = new ConcurrentHashMap<>();
+
+    // Auto-create session on startup (or first connect)
+    @PostConstruct
+    public void init() throws InterruptedException {
+        sessionName = "whatsappBulk";
+        // Try to load existing session on startup
+        loadExistingSession();
+
+    }
+    // Load existing session from OpenWA
+    private void loadExistingSession() {
+        try {
+            String url = openwaConfig.getUrl() + "/sessions";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-Key", openwaConfig.getApiKey());
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> responseRaw = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, String.class);
+
+            JsonNode sessions = objectMapper.readTree(responseRaw.getBody());
+
+            if (sessions.isArray()) {
+                for (JsonNode session : sessions) {
+                    String status = session.get("status").asText();
+                    String name = session.get("name").asText();
+
+                    // Find a ready session or any session with our naming pattern
+                    if (status.equals("ready") && name.startsWith("whatsappBulk")) {
+                        sessionId = session.get("id").asText();
+                        sessionCache.put("sessionId", sessionId);
+                        sessionCache.put("status", status);
+                        sessionCache.put("phone", session.has("phone") ? session.get("phone").asText() : null);
+                        sessionCache.put("pushName", session.has("pushName") ? session.get("pushName").asText() : null);
+                        log.info("✅ Loaded existing session: {} with status: {}", sessionId, status);
+                        return;
+                    }
+                }
+
+                // If no ready session found, check for any existing session
+                for (JsonNode session : sessions) {
+                    String name = session.get("name").asText();
+                    if (name.startsWith("whatsappBulk")) {
+                        sessionId = session.get("id").asText();
+                        sessionCache.put("sessionId", sessionId);
+                        sessionCache.put("status", session.get("status").asText());
+                        log.info("📱 Found existing session: {} with status: {}", sessionId, session.get("status").asText());
+                        return;
+                    }
+                }
+            }
+            sessionName = "whatsappBulk" + System.currentTimeMillis();
+            log.info("No existing session found. New session will be created on connect.");
+        } catch (Exception e) {
+            log.warn("Could not load existing sessions: {}", e.getMessage());
+        }
+    }
+    @PostMapping("/send-document-bulk")
+    public ResponseEntity<String> sendDocumentBulk(
+            @RequestParam("file") MultipartFile documentFile,
+            @RequestParam("csv") MultipartFile csvFile,
+            @RequestParam(value = "caption", required = false, defaultValue = "Dear User, please find attached document.") String caption) {
+
+        if (sessionId == null) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Session not connected. Click Connect first!").toString());
+        }
+
+        try {
+            // Step 1: Read phone numbers from CSV file
+            List<String> phoneNumbers = readPhoneNumbersFromCSV(csvFile);
+
+            if (phoneNumbers.isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        objectMapper.createObjectNode().put("error", "No valid phone numbers found in CSV file").toString());
+            }
+
+            log.info("Found {} phone numbers in CSV file", phoneNumbers.size());
+
+            // Step 2: Convert document to Base64
+            byte[] fileBytes = documentFile.getBytes();
+            String base64Content = Base64.getEncoder().encodeToString(fileBytes);
+            String mimeType = documentFile.getContentType();
+            String filename = documentFile.getOriginalFilename();
+
+            // Step 3: Send document to each recipient
+            List<Map<String, Object>> results = new ArrayList<>();
+            AtomicInteger successCount = new AtomicInteger(0);
+            AtomicInteger failureCount = new AtomicInteger(0);
+
+            for (int i = 0; i < phoneNumbers.size(); i++) {
+                String phoneNumber = phoneNumbers.get(i);
+                try {
+                    // Prepare request body
+                    Map<String, String> body = new HashMap<>();
+                    body.put("chatId", phoneNumber + "@c.us");
+                    body.put("base64", base64Content);
+                    body.put("mimetype", mimeType);
+                    body.put("filename", filename);
+                    body.put("caption", caption);
+
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.set("X-API-Key", openwaConfig.getApiKey());
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+
+                    HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+                    String url = openwaConfig.getUrl() + "/sessions/" + sessionId + "/messages/send-document";
+
+                    ResponseEntity<String> responseRaw = restTemplate.exchange(
+                            url, HttpMethod.POST, entity, String.class);
+
+                    JsonNode response = objectMapper.readTree(responseRaw.getBody());
+
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("phoneNumber", phoneNumber);
+                    result.put("status", "success");
+                    result.put("messageId", response.has("messageId") ? response.get("messageId").asText() : "Sent");
+                    results.add(result);
+                    successCount.incrementAndGet();
+
+                    log.info("Sent document to {} ({}/{})", phoneNumber, i + 1, phoneNumbers.size());
+
+                    // Add delay between messages (3 seconds default)
+                    if (i < phoneNumbers.size() - 1) {
+                        Thread.sleep(3000);
+                    }
+
+                } catch (Exception e) {
+                    log.error("Failed to send to {}: {}", phoneNumber, e.getMessage());
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("phoneNumber", phoneNumber);
+                    result.put("status", "failed");
+                    result.put("error", e.getMessage());
+                    results.add(result);
+                    failureCount.incrementAndGet();
+                }
+            }
+
+            // Step 4: Prepare response
+            ObjectNode response = objectMapper.createObjectNode();
+            response.put("success", true);
+            response.put("totalRecipients", phoneNumbers.size());
+            response.put("successCount", successCount.get());
+            response.put("failureCount", failureCount.get());
+            response.put("documentName", filename);
+            response.put("caption", caption);
+            response.set("details", objectMapper.valueToTree(results));
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(response));
+
+        } catch (Exception e) {
+            log.error("Failed to send bulk documents: ", e);
+            return ResponseEntity.status(500).body(
+                    objectMapper.createObjectNode().put("error", "Failed to send bulk documents: " + e.getMessage()).toString());
+        }
+    }
+
+    // Helper method to read phone numbers from CSV
+    private List<String> readPhoneNumbersFromCSV(MultipartFile csvFile) throws Exception {
+        List<String> phoneNumbers = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(csvFile.getInputStream(), StandardCharsets.UTF_8))) {
+
+            String line;
+            boolean isFirstLine = true;
+
+            while ((line = reader.readLine()) != null) {
+                // Skip empty lines
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+
+                // Skip header if present (look for common header names)
+                if (isFirstLine) {
+                    String lowerLine = line.toLowerCase();
+                    if (lowerLine.contains("phone") || lowerLine.contains("mobile") ||
+                            lowerLine.contains("number") || lowerLine.contains("contact")) {
+                        isFirstLine = false;
+                        continue;
+                    }
+                    isFirstLine = false;
+                }
+
+                // Clean the phone number (remove quotes, spaces, etc.)
+                String phoneNumber = line.trim()
+                        .replaceAll("^\"|\"$", "") // Remove quotes
+                        .replaceAll("\\s+", "");   // Remove whitespace
+
+                // Extract first column if CSV has multiple columns
+                if (phoneNumber.contains(",")) {
+                    phoneNumber = phoneNumber.split(",")[0].trim();
+                }
+
+                // Validate phone number (only digits, 10-15 characters)
+                if (phoneNumber.matches("\\d{10,15}")) {
+                    phoneNumbers.add(phoneNumber);
+                } else {
+                    log.warn("Skipping invalid phone number: {}", phoneNumber);
+                }
+            }
+        }
+
+        return phoneNumbers;
+    }
+    // Connect endpoint - creates and starts session automatically
+    @PostMapping("/connect")
+    public ResponseEntity<Map<String, String>> connect() {
+        try {
+            // Check if session already exists and is ready
+            if (sessionId != null && isSessionReady()) {
+                Map<String, String> response = new HashMap<>();
+                response.put("status", "already_connected");
+                response.put("message", "Session already connected!");
+                return ResponseEntity.ok(response);
+            }
+            if (!sessionCache.isEmpty())
+            {
+                if (sessionCache.get("status").equals("disconnected"))
+                {
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.set("X-API-Key", openwaConfig.getApiKey());
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    String startSessionUrl = openwaConfig.getUrl() + "/sessions/" + sessionId + "/start";
+                    HttpEntity<String> startEntity = new HttpEntity<>(headers);
+                    restTemplate.exchange(startSessionUrl, HttpMethod.POST, startEntity, String.class);
+                    Map<String, String> response = new HashMap<>();
+                    response.put("status", "already_connected");
+                    response.put("message", "Session  connected!");
+                    return ResponseEntity.ok(response);
+                }
+                else
+                {
+                    Map<String, String> response = new HashMap<>();
+                    response.put("status", "already_connected");
+                    response.put("message", "Session already connected!");
+                    return ResponseEntity.ok(response);
+                }
+            }
+            // Step 1: Create new session
+            String createSessionUrl = openwaConfig.getUrl() + "/sessions";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-Key", openwaConfig.getApiKey());
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, Object> sessionConfig = new HashMap<>();
+            sessionConfig.put("name", sessionName);
+
+            Map<String, Object> config = new HashMap<>();
+            config.put("autoReconnect", true);
+            config.put("autoRefresh", true);
+            config.put("qrRefreshS", 120);
+            config.put("qrTimeout", 600);
+            config.put("authTimeout", 600);
+            sessionConfig.put("config", config);
+
+            HttpEntity<Map<String, Object>> createEntity = new HttpEntity<>(sessionConfig, headers);
+            ResponseEntity<String> createResponseRaw = restTemplate.exchange(
+                    createSessionUrl, HttpMethod.POST, createEntity, String.class);
+            JsonNode createResponse = objectMapper.readTree(createResponseRaw.getBody());
+            sessionId = createResponse.get("id").asText();
+            sessionCache.put("sessionId", sessionId);
+            sessionCache.put("status", "created");
+            Thread.sleep(3000);
+            // Step 2: Start the session
+            String startSessionUrl = openwaConfig.getUrl() + "/sessions/" + sessionId + "/start";
+            HttpEntity<String> startEntity = new HttpEntity<>(headers);
+            ResponseEntity<String> startResponseRaw = restTemplate.exchange(
+                    startSessionUrl, HttpMethod.POST, startEntity, String.class);
+            JsonNode startResponse = objectMapper.readTree(startResponseRaw.getBody());
+            Thread.sleep(3000);
+            // Step 3: Get QR code
+            String qrUrl = openwaConfig.getUrl() + "/sessions/" + sessionId + "/qr";
+            ResponseEntity<String> qrResponseRaw = restTemplate.exchange(
+                    qrUrl, HttpMethod.GET, startEntity, String.class);
+            JsonNode qrResponse = objectMapper.readTree(qrResponseRaw.getBody());
+            Map<String, String> response = new HashMap<>();
+            response.put("qrCode", qrResponse.get("qrCode").asText());
+            response.put("sessionId", sessionId);
+            response.put("status", startResponse.get("status").asText());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to connect: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    // Check session status
+    @GetMapping("/status")
+    public ResponseEntity<Map<String, String>> getStatus() {
+        if (sessionId == null) {
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "not_connected");
+            response.put("message", "Please click Connect button first");
+            return ResponseEntity.ok(response);
+        }
+
+        try {
+            Thread.sleep(3000);
+            String url = openwaConfig.getUrl() + "/sessions/" + sessionId;
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-Key", openwaConfig.getApiKey());
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> responseRaw = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, String.class);
+            JsonNode response = objectMapper.readTree(responseRaw.getBody());
+            Map<String, String> result = new HashMap<>();
+            result.put("status", response.get("status").asText());
+            if (response.has("phone")) {
+                result.put("phone", response.get("phone").asText());
+            }
+            if (response.has("pushName")) {
+                result.put("pushName", response.get("pushName").asText());
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    // 1. Send text message
+    @PostMapping("/send-text")
+    public ResponseEntity<String> sendText(@RequestBody Map<String, String> request) {
+        if (sessionId == null) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Session not connected. Click Connect first!").toString());
+        }
+        try {
+        String url = openwaConfig.getUrl() + "/sessions/" + sessionId + "/messages/send-text";
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-API-Key", openwaConfig.getApiKey());
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, String> body = new HashMap<>();
+        body.put("chatId", request.get("chatId") + "@c.us");
+        body.put("text", request.get("text"));
+
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+        ResponseEntity<String> responseRaw = restTemplate.exchange(
+                url, HttpMethod.POST, entity, String.class);
+        return ResponseEntity.ok(responseRaw.getBody());
+        } catch (Exception e) {
+
+            ObjectNode error = objectMapper.createObjectNode();
+            error.put("error", "Failed to send message: " + e.getMessage());
+            return ResponseEntity.status(500).body(error.toString());
+        }
+    }
+
+    // 2. Send bulk messages
+    @PostMapping("/send-bulk-text")
+    public ResponseEntity<String> sendBulkText(
+            @RequestParam("csv") MultipartFile csvFile,
+            @RequestParam("message") String message,
+            @RequestParam(value = "delayMs", required = false, defaultValue = "3000") int delayMs,
+            @RequestParam(value = "randomizeDelay", required = false, defaultValue = "false") boolean randomizeDelay) {
+
+        if (sessionId == null) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Session not connected. Click Connect first!").toString());
+        }
+
+        if (!isSessionReady()) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Session is not ready. Please check connection.").toString());
+        }
+
+        try {
+            // Read phone numbers from CSV file
+            List<String> phoneNumbers = readPhoneNumbersFromCSV(csvFile);
+
+            if (phoneNumbers.isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        objectMapper.createObjectNode().put("error", "No valid phone numbers found in CSV file").toString());
+            }
+
+            log.info("Found {} phone numbers in CSV file", phoneNumbers.size());
+
+            // ✅ Build the bulk payload for ALL messages at once
+            List<Map<String, Object>> messages = new ArrayList<>();
+
+            for (String phoneNumber : phoneNumbers) {
+                Map<String, Object> messageBody = new HashMap<>();
+                messageBody.put("chatId", phoneNumber + "@c.us");
+                messageBody.put("type", "text");
+
+                Map<String, String> content = new HashMap<>();
+                content.put("text", message);
+                messageBody.put("content", content);
+
+                messages.add(messageBody);
+            }
+
+            // ✅ Create the complete payload for OpenWA
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("messages", messages);
+
+            Map<String, Object> options = new HashMap<>();
+            options.put("delayBetweenMessages", delayMs);
+            options.put("randomizeDelay", randomizeDelay);
+            options.put("stopOnError", false);
+            payload.put("options", options);
+
+            // ✅ Send ONE request to OpenWA with ALL messages
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-Key", openwaConfig.getApiKey());
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            String url = openwaConfig.getUrl() + "/sessions/" + sessionId + "/messages/send-bulk";
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+            log.info("Sending bulk request with {} messages", messages.size());
+            log.debug("Payload: {}", objectMapper.writeValueAsString(payload));
+
+            ResponseEntity<String> responseRaw = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, String.class);
+
+            JsonNode response = objectMapper.readTree(responseRaw.getBody());
+
+            // Build response summary
+            ObjectNode responseNode = objectMapper.createObjectNode();
+            responseNode.put("success", true);
+            responseNode.put("totalRecipients", phoneNumbers.size());
+            responseNode.put("batchId", response.has("batchId") ? response.get("batchId").asText() : "N/A");
+            responseNode.put("status", response.has("status") ? response.get("status").asText() : "processing");
+            responseNode.put("message", message);
+            responseNode.put("delayMs", delayMs);
+            responseNode.put("randomizeDelay", randomizeDelay);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(responseNode));
+
+        } catch (Exception e) {
+            log.error("Failed to send bulk messages: ", e);
+            return ResponseEntity.status(500).body(
+                    objectMapper.createObjectNode().put("error", "Failed to send bulk messages: " + e.getMessage()).toString());
+        }
+    }
+
+    // 3. Send document/file
+    @PostMapping("/send-document")
+    public ResponseEntity<String> sendDocument(
+            @RequestParam String chatId,
+            @RequestParam String caption,
+            @RequestParam MultipartFile file) {
+
+        if (sessionId == null) {
+            return ResponseEntity.badRequest().body(
+                    objectMapper.createObjectNode().put("error", "Session not connected. Click Connect first!").toString());
+        }
+
+        try {
+            String url = openwaConfig.getUrl() + "/sessions/" + sessionId + "/messages/send-image";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-Key", openwaConfig.getApiKey());
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // Convert file to Base64
+            byte[] fileBytes = file.getBytes();
+            String base64Content = Base64.getEncoder().encodeToString(fileBytes);
+            Map<String, String> body = new HashMap<>();
+            body.put("chatId", chatId + "@c.us");
+            body.put("base64", base64Content);
+            body.put("mimetype", file.getContentType());
+            body.put("filename", file.getOriginalFilename());
+            body.put("caption", caption);
+
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> responseRaw = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, String.class);
+            return ResponseEntity.ok(responseRaw.getBody());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(
+                    objectMapper.createObjectNode().put("error", "Failed to send document: " + e.getMessage()).toString());
+        }
+    }
+    private byte[] compressFile(byte[] data) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(baos)) {
+            gzip.write(data);
+            gzip.finish();
+            return baos.toByteArray();
+        }
+    }
+    private boolean isSessionReady() {
+        try {
+            String url = openwaConfig.getUrl() + "/sessions/" + sessionId;
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-Key", openwaConfig.getApiKey());
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> responseRaw = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, String.class);
+            JsonNode response = objectMapper.readTree(responseRaw.getBody());
+            return "ready".equals(response.get("status").asText());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+}

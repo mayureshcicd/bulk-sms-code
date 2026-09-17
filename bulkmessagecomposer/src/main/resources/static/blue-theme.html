@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bulk Messenger</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        :root {
+            --primary-blue: #4da6ff;
+            --light-blue: #a5d6ff;
+            --soft-blue: #81c4ff;
+            --dark-blue: #1e3a8a;
+        }
+        * {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body {
+            background: linear-gradient(135deg, #f0f7ff 0%, #e0f0ff 50%, #d0e8ff 100%);
+            min-height: 100vh;
+            font-family: 'Inter', system-ui, sans-serif;
+            color: #1e3a8a;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle at 20% 30%, rgba(77, 166, 255, 0.15) 0%, transparent 50%),
+            radial-gradient(circle at 80% 70%, rgba(129, 196, 255, 0.12) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+        .container {
+            max-width: 1280px;
+            padding-top: 40px;
+            padding-bottom: 60px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .logo-icon {
+            font-size: 4.5rem;
+            background: linear-gradient(135deg, #4da6ff, #1e88e5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 10px 20px rgba(77, 166, 255, 0.4));
+        }
+        h1 {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 2.8rem;
+            letter-spacing: -1px;
+            background: linear-gradient(to right, #1e3a8a, #4da6ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #1e40af;
+            font-size: 1.15rem;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(77, 166, 255, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(77, 166, 255, 0.15);
+            backdrop-filter: blur(16px);
+        }
+        .card-header {
+            background: linear-gradient(135deg, #4da6ff, #1e88e5);
+            color: white;
+            padding: 18px 24px;
+            font-weight: 600;
+            font-size: 1.15rem;
+        }
+        .nav-tabs {
+            border-bottom: 3px solid rgba(77, 166, 255, 0.3);
+            gap: 8px;
+        }
+        .nav-tabs .nav-link {
+            color: #1e40af;
+            font-weight: 600;
+            padding: 14px 28px;
+            border-radius: 12px 12px 0 0;
+        }
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, #4da6ff, #1e88e5);
+            color: white;
+            box-shadow: 0 4px 15px rgba(77, 166, 255, 0.4);
+        }
+        .form-control, .form-select {
+            background: white;
+            border: 1.5px solid rgba(77, 166, 255, 0.4);
+            border-radius: 12px;
+            padding: 14px 18px;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 4px rgba(77, 166, 255, 0.2);
+        }
+        .btn {
+            border-radius: 50px;
+            padding: 12px 32px;
+            font-weight: 600;
+        }
+        .btn-connect {
+            background: linear-gradient(135deg, #4da6ff, #1e88e5);
+            border: none;
+            font-size: 1.1rem;
+            padding: 16px 48px;
+            box-shadow: 0 10px 30px rgba(77, 166, 255, 0.4);
+        }
+        .btn-connect:hover:not(:disabled) {
+            transform: translateY(-4px) scale(1.03);
+            box-shadow: 0 15px 35px rgba(77, 166, 255, 0.5);
+        }
+        .status-badge {
+            font-size: 1rem;
+            padding: 12px 28px;
+            border-radius: 50px;
+            font-weight: 600;
+        }
+        .qr-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        .connected-info {
+            background: linear-gradient(135deg, #e0f0ff, #c3e0ff);
+            border: 2px solid #4da6ff;
+            border-radius: 16px;
+        }
+        .progress {
+            height: 14px;
+            border-radius: 50px;
+            background: #e6f0ff;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #4da6ff, #81c4ff);
+        }
+        .file-upload-area {
+            border: 2px dashed #81c4ff;
+            background: #f8fbff;
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .file-upload-area:hover {
+            border-color: #4da6ff;
+            background: #f0f8ff;
+        }
+        .footer {
+            background: rgba(224, 240, 255, 0.95);
+            border-top: 1px solid #81c4ff;
+            padding: 30px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <i class="fab fa-whatsapp logo-icon mb-3"></i>
+        <h1 data-company-name>ATOZ GUMMING WORK INDIA PVT. LTD.</h1>
+        <p class="subtitle">Premium WhatsApp Bulk Messaging Platform</p>
+    </div>
+
+    <!-- Connect Section -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="fas fa-plug"></i>
+            <span>Step 1: Connect Your WhatsApp</span>
+        </div>
+        <div class="card-body text-center py-5">
+            <button class="btn btn-connect text-white fw-bold" id="connectBtn">
+                <i class="fas fa-link me-2"></i> Connect to WhatsApp
+            </button>
+           <!-- <div id="statusContainer" class="mt-4">
+                <span id="statusBadge" class="status-badge bg-warning text-dark">
+                    <i class="fas fa-circle"></i> Not Connected
+                </span>
+            </div>-->
+            <div id="qrContainer" class="mt-4" style="display:none;">
+                <div class="qr-container mx-auto" style="max-width: 320px;">
+                    <h5 class="mb-3 text-primary">
+                        <i class="fas fa-qrcode"></i> Scan QR Code
+                    </h5>
+                    <img id="qrImage" src="" alt="QR Code" class="img-fluid rounded-3 shadow-sm" style="max-width: 260px;">
+                    <p class="text-muted mt-3 small">
+                        Open WhatsApp → Settings → Linked Devices → Link a Device
+                    </p>
+                </div>
+            </div>
+            <div id="connectedInfo" class="mt-4 mx-auto" style="max-width: 420px; display:none;">
+                <div class="connected-info p-4 text-start">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                        <div>
+                            <h5 class="mb-0 text-success">Connected Successfully</h5>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <strong><i class="fas fa-phone"></i> Phone</strong><br>
+                            <span id="phoneNumber" class="text-primary"></span>
+                        </div>
+                        <div class="col-6">
+                            <strong><i class="fas fa-user"></i> Name</strong><br>
+                            <span id="pushName" class="text-primary"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs justify-content-center mb-0" id="messagingTabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" id="single-tab" data-bs-toggle="tab" data-bs-target="#single"><i class="fas fa-paper-plane me-2"></i>Single Message</button></li>
+        <li class="nav-item"><button class="nav-link" id="bulk-text-tab" data-bs-toggle="tab" data-bs-target="#bulk-text"><i class="fas fa-list me-2"></i>Bulk Text</button></li>
+        <li class="nav-item"><button class="nav-link" id="document-single-tab" data-bs-toggle="tab" data-bs-target="#document-single"><i class="fas fa-file-alt me-2"></i>Single Document</button></li>
+        <li class="nav-item"><button class="nav-link" id="document-bulk-tab" data-bs-toggle="tab" data-bs-target="#document-bulk"><i class="fas fa-file-export me-2"></i>Bulk Document</button></li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Single Message -->
+        <div class="tab-pane fade show active" id="single">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-paper-plane"></i> Send Single Message</div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-5">
+                            <label class="form-label fw-medium"><i class="fas fa-phone"></i> Phone Number</label>
+                            <input type="text" class="form-control" id="singleNumber" placeholder="919823510523">
+                            <small class="text-muted">With country code, no + or 00</small>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label fw-medium"><i class="fas fa-comment-dots"></i> Message</label>
+                            <textarea class="form-control" id="singleMessage" rows="5" placeholder="Type your message here..."></textarea>
+                        </div>
+                    </div>
+                    <button class="btn btn-success mt-4" id="sendSingleBtn" disabled>
+                        <i class="fas fa-paper-plane"></i> Send Now
+                    </button>
+                    <div id="singleResult" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Text -->
+        <div class="tab-pane fade" id="bulk-text">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-layer-group"></i> Bulk Text Messaging</div>
+                <div class="card-body">
+                    <div class="alert alert-info border-0">
+                        <i class="fas fa-info-circle"></i> One phone number per line in CSV/TXT file
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="file-upload-area" onclick="document.getElementById('bulkCsvFile').click()">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                <p class="mb-1 fw-medium">Upload Phone Numbers (CSV/TXT)</p>
+                                <input type="file" class="form-control d-none" id="bulkCsvFile" accept=".csv,.txt">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Message Content</label>
+                            <textarea class="form-control" id="bulkTextMessage" rows="6" placeholder="Your message for all recipients..."></textarea>
+                        </div>
+                    </div>
+                    <div class="row g-4 mt-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Delay (milliseconds)</label>
+                            <input type="number" class="form-control" id="bulkTextDelayMs" value="3000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Randomize Delay</label>
+                            <select class="form-select" id="bulkTextRandomizeDelay">
+                                <option value="false">No</option>
+                                <option value="true">Yes</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-info mt-4" id="sendBulkTextBtn" disabled>
+                        <i class="fas fa-bolt"></i> Start Bulk Campaign
+                    </button>
+                    <div id="bulkTextProgress" style="display:none;" class="mt-4">
+                        <div class="progress">
+                            <div id="bulkTextProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%">0%</div>
+                        </div>
+                        <div id="bulkTextProgressStatus" class="small text-muted mt-2"></div>
+                    </div>
+                    <div id="bulkTextResult" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Single Document -->
+        <div class="tab-pane fade" id="document-single">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-file"></i> Send Single Document</div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Recipient Number</label>
+                            <input type="text" class="form-control" id="docNumber" placeholder="919823510523">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Document</label>
+                            <input type="file" class="form-control" id="docFile" accept="image/*,.pdf,.doc,.docx,.txt">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="form-label fw-medium">Caption</label>
+                        <textarea class="form-control" id="docCaption" rows="4"></textarea>
+                    </div>
+                    <button class="btn btn-warning mt-4" id="sendDocumentBtn" disabled>
+                        <i class="fas fa-upload"></i> Send Document
+                    </button>
+                    <div id="docResult" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Document -->
+        <div class="tab-pane fade" id="document-bulk">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-users"></i> Bulk Document Campaign</div>
+                <div class="card-body">
+                    <div class="alert alert-info border-0">
+                        <i class="fas fa-info-circle"></i> One phone number per line in CSV/TXT file
+                    </div>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="file-upload-area" onclick="document.getElementById('csvFile').click()">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                <p class="mb-1 fw-medium">Upload Phone Numbers (CSV/TXT)</p>
+                                <input type="file" class="form-control d-none" id="csvFile" accept=".csv,.txt">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="file-upload-area" onclick="document.getElementById('bulkDocFile').click()">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                <p class="mb-1 fw-medium">Upload Document</p>
+                                <input type="file" class="form-control d-none" id="bulkDocFile" accept="image/*,.pdf,.doc,.docx,.txt">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="form-label fw-medium">Caption / Message</label>
+                        <textarea class="form-control" id="bulkCaption" rows="4"></textarea>
+                    </div>
+                    <div class="row g-3 mt-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Delay (ms)</label>
+                            <input type="number" class="form-control" id="bulkDocDelayMs" value="3000">
+                        </div>
+                    </div>
+                    <button class="btn btn-danger mt-4" id="sendBulkDocumentBtn" disabled>
+                        <i class="fas fa-paper-plane"></i> Launch Bulk Campaign
+                    </button>
+                    <div id="bulkDocProgress" style="display:none;" class="mt-4">
+                        <div class="progress">
+                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%">0%</div>
+                        </div>
+                        <div id="progressStatus" class="small text-muted mt-2"></div>
+                    </div>
+                    <div id="bulkDocResult" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer text-center">
+    <div class="container">
+        <p class="mb-1">
+            Crafted with <i class="fas fa-heart text-danger"></i> by
+            <strong>Mayuresh Ratnaparkhi</strong>
+        </p>
+        <p class="mb-0 text-muted small">
+            <i class="fab fa-whatsapp"></i> +91 95456 46661 |
+            mayureshratnaparkhi@gmail.com
+            <span class="mx-3">© 2026 <span data-company-name>ATOZ GUMMING WORK INDIA PVT. LTD.</span></span>
+        </p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let isConnected = false;
+    let pollingInterval;
+    let currentBatchInterval;
+    let forceRefreshInterval;
+    const baseUrl = window.location.pathname.includes('/bulk-sms/') ? '/bulk-sms' : '';
+
+    function checkStatus() {
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/status',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.status === 'ready') {
+                    if (!isConnected) {
+                        isConnected = true;
+                        $('#statusBadge').removeClass('bg-warning').addClass('bg-success text-white')
+                            .html('<i class="fas fa-check-circle"></i> Connected');
+                        $('#connectedInfo').fadeIn();
+                        $('#phoneNumber').text(response.phone || 'Unknown');
+                        $('#pushName').text(response.pushName || 'Unknown');
+                        $('#qrContainer').hide();
+                        $('#connectBtn').prop('disabled', true).html('<i class="fas fa-check"></i> Connected');
+                        $('#sendSingleBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', false);
+                        showNotification('WhatsApp Connected Successfully!', 'success');
+                    }
+                } else if (response.status === 'qr_ready' || response.status === 'not_connected') {
+                    isConnected = false;
+                    $('#statusBadge').removeClass('bg-success').addClass('bg-warning text-dark')
+                        .html('<i class="fas fa-circle"></i> Not Connected');
+                    $('#connectedInfo').hide();
+                    $('#qrContainer').hide();
+                    $('#sendSingleBtn, #sendBulkTextBtn, #sendDocumentBtn, #sendBulkDocumentBtn').prop('disabled', true);
+                    $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+                }
+            }
+        });
+    }
+
+    function showNotification(message, type) {
+        const notification = $(`
+            <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg"
+                 style="z-index: 9999; min-width: 320px;" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `);
+        $('body').append(notification);
+        setTimeout(() => notification.fadeOut(() => notification.remove()), 5000);
+    }
+
+    $('#connectBtn').click(function() {
+        $('#connectBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Connecting...');
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/connect',
+            type: 'POST',
+            success: function(response) {
+                if (response.error) {
+                    showNotification('Error: ' + response.error, 'danger');
+                    $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+                    return;
+                }
+                if (response.qrCode) {
+                    $('#qrContainer').fadeIn();
+                    $('#qrImage').attr('src', response.qrCode);
+                    showNotification('QR Code Ready! Scan with WhatsApp.', 'info');
+                }
+                checkStatus();
+            },
+            error: function() {
+                showNotification('Connection failed', 'danger');
+                $('#connectBtn').prop('disabled', false).html('<i class="fas fa-link"></i> Connect WhatsApp');
+            }
+        });
+    });
+
+    // ==================== ORIGINAL FUNCTIONALITY ====================
+
+    // Send Single Message
+    $('#sendSingleBtn').click(function() {
+        const number = $('#singleNumber').val().trim();
+        const message = $('#singleMessage').val().trim();
+        if (!number || !message) {
+            showNotification('Please enter both number and message', 'warning');
+            return;
+        }
+        if (!number.match(/^\d+$/)) {
+            showNotification('Please enter a valid phone number (digits only, with country code)', 'warning');
+            return;
+        }
+        $('#sendSingleBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-text',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ chatId: number, text: message }),
+            dataType: 'json',
+            success: function(response) {
+                $('#singleResult').html('<div class="alert alert-success">✅ Sent successfully! Message ID: ' + (response.messageId || 'Success') + '</div>');
+                $('#singleNumber').val('');
+                $('#singleMessage').val('');
+                setTimeout(() => $('#singleResult').empty(), 3000);
+                showNotification('Message sent successfully!', 'success');
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Unknown error';
+                $('#singleResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                showNotification('Failed to send message: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendSingleBtn').prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Now');
+            }
+        });
+    });
+
+    // Send Bulk Text Messages
+    $('#sendBulkTextBtn').click(function() {
+        const csvFile = $('#bulkCsvFile')[0].files[0];
+        const message = $('#bulkTextMessage').val().trim();
+        const delayMs = parseInt($('#bulkTextDelayMs').val()) || 3000;
+        const randomizeDelay = $('#bulkTextRandomizeDelay').val() === 'true';
+        if (!csvFile || !message) {
+            showNotification('Please select CSV file and enter message', 'warning');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('csv', csvFile);
+        formData.append('message', message);
+        formData.append('delayMs', delayMs);
+        formData.append('randomizeDelay', randomizeDelay);
+
+        $('#sendBulkTextBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating batch...');
+        $('#bulkTextProgress').show();
+        $('#bulkTextProgressBar').css('width', '0%').text('0%');
+        $('#bulkTextProgressStatus').text('Uploading CSV file...');
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-bulk-text',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000,
+            dataType: 'json',
+            success: function(response) {
+                $('#bulkTextProgressBar').css('width', '100%').text('100%');
+                $('#bulkTextProgressStatus').text('Batch created! Processing...');
+                let html = '<div class="alert alert-info">';
+                html += '<strong>✅ Batch Created!</strong><br>';
+                html += '<strong>Batch ID:</strong> ' + response.batchId + '<br>';
+                html += '<strong>Total Messages:</strong> ' + response.totalRecipients + '<br>';
+                html += '<div id="batchProgress" class="mt-2"></div>';
+                html += '</div>';
+                $('#bulkTextResult').html(html);
+                startPollingBatchStatus(response.batchId);
+                $('#bulkCsvFile').val('');
+                $('#bulkTextMessage').val('');
+                showNotification(`Batch ${response.batchId} created with ${response.totalRecipients} messages`, 'success');
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || 'Unknown error';
+                $('#bulkTextResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                $('#bulkTextProgress').hide();
+                showNotification('Failed to create batch: ' + errorMsg, 'danger');
+            },
+            complete: function() {
+                $('#sendBulkTextBtn').prop('disabled', false).html('<i class="fas fa-bolt"></i> Start Bulk Campaign');
+            }
+        });
+    });
+
+    function startPollingBatchStatus(batchId) {
+        if (currentBatchInterval) clearInterval(currentBatchInterval);
+        currentBatchInterval = setInterval(function() {
+            $.ajax({
+                url: baseUrl + '/api/whatsapp/batch-status/' + batchId,
+                type: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    const sent = response.sentMessages || 0;
+                    const total = response.totalMessages || 0;
+                    const percent = total > 0 ? Math.round((sent / total) * 100) : 0;
+                    let progressHtml = `<div class="progress mt-2"><div class="progress-bar progress-bar-striped progress-bar-animated" style="width: ${percent}%">${percent}%</div></div>`;
+                    progressHtml += `<small>Sent: ${sent} / ${total}</small>`;
+                    $('#batchProgress').html(progressHtml);
+
+                    if (response.status === 'completed') {
+                        clearInterval(currentBatchInterval);
+                        showNotification('All messages sent successfully!', 'success');
+                    }
+                }
+            });
+        }, 3000);
+    }
+
+    // Send Single Document
+    $('#sendDocumentBtn').click(function() {
+        const number = $('#docNumber').val().trim();
+        const caption = $('#docCaption').val().trim();
+        const file = $('#docFile')[0].files[0];
+        if (!number || !file) {
+            showNotification('Please enter number and select a file', 'warning');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('chatId', number);
+        formData.append('caption', caption || 'Here is your file');
+        formData.append('file', file);
+
+        $('#sendDocumentBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-document',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                $('#docResult').html('<div class="alert alert-success">✅ Document sent successfully!</div>');
+                $('#docNumber').val('');
+                $('#docCaption').val('');
+                $('#docFile').val('');
+                showNotification('Document sent successfully!', 'success');
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || 'Unknown error';
+                $('#docResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                showNotification('Failed to send document', 'danger');
+            },
+            complete: function() {
+                $('#sendDocumentBtn').prop('disabled', false).html('<i class="fas fa-upload"></i> Send Document');
+            }
+        });
+    });
+
+    // Send Bulk Document
+    $('#sendBulkDocumentBtn').click(function() {
+        const csvFile = $('#csvFile')[0].files[0];
+        const documentFile = $('#bulkDocFile')[0].files[0];
+        const caption = $('#bulkCaption').val().trim() || "Please find attached document.";
+        const delayMs = parseInt($('#bulkDocDelayMs').val()) || 3000;
+
+        if (!csvFile || !documentFile) {
+            showNotification('Please select both CSV and Document file', 'warning');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('csv', csvFile);
+        formData.append('file', documentFile);
+        formData.append('caption', caption);
+        formData.append('delayMs', delayMs);
+
+        $('#sendBulkDocumentBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+        $('#bulkDocProgress').show();
+
+        $.ajax({
+            url: baseUrl + '/api/whatsapp/send-document-bulk',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000,
+            success: function(response) {
+                $('#bulkDocProgress').hide();
+                let html = `<div class="alert alert-success">
+                    <strong>✅ Bulk Send Completed!</strong><br>
+                    Total: ${response.totalRecipients} | Success: ${response.successCount} | Failed: ${response.failureCount}
+                </div>`;
+                $('#bulkDocResult').html(html);
+                $('#csvFile').val('');
+                $('#bulkDocFile').val('');
+                showNotification(`Bulk send completed! ${response.successCount}/${response.totalRecipients} successful`, 'success');
+            },
+            error: function(xhr) {
+                let errorMsg = xhr.responseJSON?.error || 'Unknown error';
+                $('#bulkDocResult').html('<div class="alert alert-danger">❌ Failed: ' + errorMsg + '</div>');
+                $('#bulkDocProgress').hide();
+                showNotification('Failed to send bulk documents', 'danger');
+            },
+            complete: function() {
+                $('#sendBulkDocumentBtn').prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Launch Bulk Campaign');
+            }
+        });
+    });
+
+    // Initialize
+    $(document).ready(function() {
+        setInterval(checkStatus, 3000);
+    });
+
+    $(window).on('beforeunload', function() {
+        if (currentBatchInterval) clearInterval(currentBatchInterval);
+        if (pollingInterval) clearInterval(pollingInterval);
+    });
+</script>
+<script src="js/branding.js"></script>
+</body>
+</html>
